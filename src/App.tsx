@@ -96,6 +96,8 @@ export default function App() {
   const [currentVersionIdx, setCurrentVersionIdx] = useState(-1);
   const [revisionPrompt, setRevisionPrompt] = useState('');
   const [uploadedFile, setUploadedFile] = useState<{ name: string, type: string, data: string } | null>(null);
+  const [dynamicQuestions, setDynamicQuestions] = useState<Question[]>([]);
+  const [appName, setAppName] = useState("");
 
   const currentPRD = prdHistory[currentVersionIdx] || null;
 
@@ -172,9 +174,12 @@ export default function App() {
     setCurrentScreeningIdx(0);
     setTechPreference({ mode: 'ai', backend: '', frontend: '', database: '', styling: '' });
     setPrdHistory([]);
+    setSavedPrds([]);
     setCurrentVersionIdx(-1);
     setRevisionPrompt('');
     setUploadedFile(null);
+    setDynamicQuestions([]);
+    setAppName("");
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -227,12 +232,57 @@ export default function App() {
     }
   };
 
+  const generateDynamicQuestions = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const prompt = `Analisis konsep aplikasi berikut dan berikan 10-15 pertanyaan screening yang sangat relevan untuk membantu menyusun PRD yang mendalam.
+      
+      KONSEP: ${systemIdea.description}
+      ${uploadedFile ? "Analisis juga file yang diunggah untuk mendapatkan konteks tambahan." : ""}
+      
+      Output harus dalam format JSON ARRAY yang berisi objek dengan struktur:
+      {
+        "id": number,
+        "question": "string",
+        "options": ["string", "string", ...],
+        "isFreetextOnly": boolean
+      }
+      
+      Sertakan opsi jawaban yang relevan untuk setiap pertanyaan jika bukan freetext. Berikan pertanyaan dalam bahasa ${systemIdea.language}.`;
+
+      const filePart = uploadedFile ? { mimeType: uploadedFile.type, data: uploadedFile.data } : undefined;
+      const questions = await callGemini(prompt, true, filePart);
+      
+      // Add icons to dynamic questions
+      const icons = [<Users className="w-4 h-4" />, <Zap className="w-4 h-4" />, <ShieldCheck className="w-4 h-4" />, <Database className="w-4 h-4" />, <Smartphone className="w-4 h-4" />, <BarChart3 className="w-4 h-4" />, <LayoutDashboard className="w-4 h-4" />, <Globe className="w-4 h-4" />, <Lock className="w-4 h-4" />, <Settings className="w-4 h-4" />];
+      
+      const formattedQuestions = questions.map((q: any, idx: number) => ({
+        ...q,
+        icon: icons[idx % icons.length]
+      }));
+
+      setDynamicQuestions(formattedQuestions);
+      
+      // Also extract app name if possible
+      const namePrompt = `Berdasarkan konsep ini: "${systemIdea.description}", berikan 1 nama aplikasi yang paling cocok (hanya nama saja, maks 3 kata).`;
+      const nameResult = await callGemini(namePrompt);
+      setAppName(nameResult.replace(/["']/g, "").trim());
+      
+      setStep(3);
+    } catch (err: any) {
+      setError(`Gagal menganalisis konsep: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const generatePRD = async () => {
     setLoading(true);
     setError(null);
     try {
       const answersText = Object.entries(answers).map(([id, val]) => {
-        const q = screeningQuestions.find(q => q.id === parseInt(id));
+        const q = dynamicQuestions.find(q => q.id === parseInt(id));
         return `Pertanyaan: ${q?.question}\nJawaban: ${val}`;
       }).join('\n\n');
 
@@ -313,7 +363,8 @@ export default function App() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `PRD_v${currentVersionIdx + 1}.md`;
+    const safeAppName = appName.replace(/[^a-z0-9]/gi, '_').toLowerCase() || "Aplikasi";
+    link.download = `${safeAppName}_v${currentVersionIdx + 1}.md`;
     document.body.appendChild(link);
     link.click();
     setTimeout(() => {
@@ -323,8 +374,8 @@ export default function App() {
   };
 
   const handleNextQuestion = () => {
-    const currentQ = screeningQuestions[currentScreeningIdx];
-    const isLastQ = currentScreeningIdx === screeningQuestions.length - 1;
+    const currentQ = dynamicQuestions[currentScreeningIdx];
+    const isLastQ = currentScreeningIdx === dynamicQuestions.length - 1;
     
     if (answers[currentQ.id] === "Lainnya" && customInput.trim()) {
       setAnswers({ ...answers, [currentQ.id]: `Lainnya: ${customInput}` });
@@ -519,11 +570,11 @@ export default function App() {
                   <CardFooter className="flex gap-4">
                     <Button variant="outline" onClick={() => setStep(1)} className="h-12">Kembali</Button>
                     <Button 
-                      disabled={!systemIdea.description} 
-                      onClick={() => setStep(3)} 
+                      disabled={!systemIdea.description || loading} 
+                      onClick={generateDynamicQuestions} 
                       className="flex-1 h-12 bg-purple-600 hover:bg-purple-700 text-white font-bold"
                     >
-                      Mulai Screening Kebutuhan <ChevronRight className="ml-2 w-4 h-4" />
+                      {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Menganalisis Konsep...</> : <>Mulai Screening Kebutuhan <ChevronRight className="ml-2 w-4 h-4" /></>}
                     </Button>
                   </CardFooter>
                 </Card>
@@ -542,59 +593,59 @@ export default function App() {
                   <CardHeader className="pb-4">
                     <div className="flex justify-between items-center mb-2">
                       <Badge variant="secondary" className="text-blue-600 bg-blue-50 border-none">Screening Fase {currentScreeningIdx + 1}</Badge>
-                      <span className="text-xs font-bold text-gray-400">{Math.round(((currentScreeningIdx + 1) / screeningQuestions.length) * 100)}% Selesai</span>
+                      <span className="text-xs font-bold text-gray-400">{Math.round(((currentScreeningIdx + 1) / dynamicQuestions.length) * 100)}% Selesai</span>
                     </div>
-                    <Progress value={((currentScreeningIdx + 1) / screeningQuestions.length) * 100} className="h-1" />
+                    <Progress value={((currentScreeningIdx + 1) / dynamicQuestions.length) * 100} className="h-1" />
                   </CardHeader>
                   <CardContent className="pt-6 space-y-8">
                     <div className="space-y-4">
                       <div className="flex items-center gap-3">
                         <div className="p-2 rounded-lg bg-blue-600 text-white">
-                          {screeningQuestions[currentScreeningIdx].icon}
+                          {dynamicQuestions[currentScreeningIdx]?.icon}
                         </div>
                         <h2 className="text-xl md:text-2xl font-bold leading-tight">
-                          {screeningQuestions[currentScreeningIdx].question}
+                          {dynamicQuestions[currentScreeningIdx]?.question}
                         </h2>
                       </div>
                       
                       <div className="grid grid-cols-1 gap-3 pt-4">
-                        {screeningQuestions[currentScreeningIdx].isFreetextOnly ? (
+                        {dynamicQuestions[currentScreeningIdx]?.isFreetextOnly ? (
                           <Textarea 
                             className="min-h-[150px] text-lg p-4" 
                             placeholder="Tuliskan jawaban detail Anda di sini..." 
-                            value={answers[screeningQuestions[currentScreeningIdx].id] || ''} 
-                            onChange={(e) => setAnswers({...answers, [screeningQuestions[currentScreeningIdx].id]: e.target.value})} 
+                            value={answers[dynamicQuestions[currentScreeningIdx].id] || ''} 
+                            onChange={(e) => setAnswers({...answers, [dynamicQuestions[currentScreeningIdx].id]: e.target.value})} 
                           />
                         ) : (
                           <>
-                            {screeningQuestions[currentScreeningIdx].options.map((opt, idx) => (
+                            {dynamicQuestions[currentScreeningIdx]?.options.map((opt, idx) => (
                               <button 
                                 key={idx} 
                                 onClick={() => {
-                                  setAnswers({...answers, [screeningQuestions[currentScreeningIdx].id]: opt});
+                                  setAnswers({...answers, [dynamicQuestions[currentScreeningIdx].id]: opt});
                                   setCustomInput("");
                                 }} 
                                 className={`w-full text-left p-4 rounded-xl border-2 transition-all duration-200 flex items-center justify-between group ${
-                                  answers[screeningQuestions[currentScreeningIdx].id] === opt 
+                                  answers[dynamicQuestions[currentScreeningIdx].id] === opt 
                                   ? 'border-blue-600 bg-blue-50 ring-2 ring-blue-100' 
                                   : 'border-gray-100 bg-white hover:border-blue-200 hover:bg-gray-50'
                                 }`}
                               >
                                 <span className="font-medium">{opt}</span>
-                                {answers[screeningQuestions[currentScreeningIdx].id] === opt && <CheckCircle className="w-5 h-5 text-blue-600" />}
+                                {answers[dynamicQuestions[currentScreeningIdx].id] === opt && <CheckCircle className="w-5 h-5 text-blue-600" />}
                               </button>
                             ))}
                             <button 
-                              onClick={() => setAnswers({...answers, [screeningQuestions[currentScreeningIdx].id]: "Lainnya"})} 
+                              onClick={() => setAnswers({...answers, [dynamicQuestions[currentScreeningIdx].id]: "Lainnya"})} 
                               className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
-                                answers[screeningQuestions[currentScreeningIdx].id]?.startsWith("Lainnya") 
+                                answers[dynamicQuestions[currentScreeningIdx].id]?.startsWith("Lainnya") 
                                 ? 'border-blue-600 bg-blue-50' 
                                 : 'border-gray-100 bg-white hover:border-blue-200'
                               }`}
                             >
                               <span className="font-medium">Lainnya...</span>
                             </button>
-                            {answers[screeningQuestions[currentScreeningIdx].id]?.startsWith("Lainnya") && (
+                            {answers[dynamicQuestions[currentScreeningIdx].id]?.startsWith("Lainnya") && (
                               <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
                                 <Input 
                                   autoFocus 
@@ -619,11 +670,11 @@ export default function App() {
                       <ChevronLeft className="mr-2 w-4 h-4" /> Kembali
                     </Button>
                     <Button 
-                      disabled={!answers[screeningQuestions[currentScreeningIdx].id] || (answers[screeningQuestions[currentScreeningIdx].id] === "Lainnya" && !customInput.trim())} 
+                      disabled={!answers[dynamicQuestions[currentScreeningIdx]?.id] || (answers[dynamicQuestions[currentScreeningIdx]?.id] === "Lainnya" && !customInput.trim())} 
                       onClick={handleNextQuestion} 
                       className="flex-1 h-12 bg-blue-600 hover:bg-blue-700 text-white font-bold"
                     >
-                      {currentScreeningIdx === screeningQuestions.length - 1 ? 'Selesaikan Screening' : 'Berikutnya'} <ChevronRight className="ml-2 w-4 h-4" />
+                      {currentScreeningIdx === dynamicQuestions.length - 1 ? 'Selesaikan Screening' : 'Berikutnya'} <ChevronRight className="ml-2 w-4 h-4" />
                     </Button>
                   </CardFooter>
                 </Card>
