@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { GoogleGenAI } from "@google/genai";
 import { 
-  User, 
+  User as LucideUser, 
   FileText, 
   Send, 
   ChevronRight, 
@@ -36,7 +36,11 @@ import {
   History,
   Upload,
   X,
-  File
+  File,
+  LogOut,
+  Plus,
+  Trash2,
+  Save
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Button } from '@/components/ui/button';
@@ -49,7 +53,27 @@ import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
+import Mermaid from './components/Mermaid';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { 
+  loginUser, 
+  registerUser, 
+  logoutUser, 
+  getMe,
+  getAllUsers,
+  getAllPackages,
+  updatePackage,
+  getSystemConfig,
+  updateSystemConfig,
+  getPrdHistory,
+  savePrdToBackend,
+  UserProfile,
+  Package,
+  SystemConfig
+} from './lib/services';
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
@@ -63,11 +87,22 @@ interface Question {
 }
 
 export default function App() {
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(0); // 0: Auth, 1-5: App
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copySuccess, setCopySuccess] = useState(false);
   
+  // Auth State
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+  const [authData, setAuthData] = useState({ email: '', password: '', name: '' });
+  const [isAdminView, setIsAdminView] = useState(false);
+
+  // Admin State
+  const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
+  const [allPackages, setAllPackages] = useState<Package[]>([]);
+  const [systemConfig, setSystemConfig] = useState<SystemConfig | null>(null);
+
   const [userProfile, setUserProfile] = useState({
     name: '',
     codingExp: 'pemula',
@@ -101,13 +136,84 @@ export default function App() {
 
   const currentPRD = prdHistory[currentVersionIdx] || null;
 
-  // Fetch saved PRDs from backend
+  // Auth Listener
   useEffect(() => {
-    fetch("/api/prds")
-      .then(res => res.json())
-      .then(data => setSavedPrds(data))
-      .catch(err => console.error("Failed to fetch history:", err));
+    const checkAuth = async () => {
+      const token = localStorage.getItem('token');
+      if (token) {
+        try {
+          const profile = await getMe();
+          setCurrentUser(profile);
+          setUserProfile(prev => ({ ...prev, name: profile.name }));
+          setStep(1);
+        } catch (err) {
+          localStorage.removeItem('token');
+          setStep(0);
+        }
+      } else {
+        setStep(0);
+      }
+    };
+    checkAuth();
   }, []);
+
+  // Admin Data Fetchers
+  useEffect(() => {
+    if (currentUser?.role === 'admin' && isAdminView) {
+      const fetchData = async () => {
+        try {
+          const [users, pkgs, config] = await Promise.all([
+            getAllUsers(),
+            getAllPackages(),
+            getSystemConfig()
+          ]);
+          setAllUsers(users);
+          setAllPackages(pkgs);
+          setSystemConfig(config);
+        } catch (err) {
+          console.error("Failed to fetch admin data", err);
+        }
+      };
+      fetchData();
+      const interval = setInterval(fetchData, 10000); // Poll every 10s as a simple "real-time" alternative
+      return () => clearInterval(interval);
+    }
+  }, [currentUser, isAdminView]);
+
+  // Fetch PRD History
+  useEffect(() => {
+    if (currentUser) {
+      getPrdHistory()
+        .then(data => setSavedPrds(data))
+        .catch(err => console.error("Failed to fetch history:", err));
+    }
+  }, [currentUser]);
+
+  const handleAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    try {
+      let user;
+      if (authMode === 'login') {
+        user = await loginUser(authData.email, authData.password);
+      } else {
+        user = await registerUser(authData.email, authData.password, authData.name);
+      }
+      setCurrentUser(user);
+      setUserProfile(prev => ({ ...prev, name: user.name }));
+      setStep(1);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    await logoutUser();
+    resetAllData();
+  };
 
   const savePrdToBackend = async (prdContent: string) => {
     try {
@@ -161,6 +267,7 @@ export default function App() {
     6. Architecture & Data Flow
     7. Database Schema Entity
     8. Recommended Tech Stack & Deployment Strategy
+    9. Visual Sequence Diagram (Gunakan sintaks Mermaid sequenceDiagram)
   `;
 
   const resetAllData = () => {
@@ -217,7 +324,7 @@ export default function App() {
         model: "gemini-2.0-flash",
         contents: { parts: contents },
         config: {
-          systemInstruction: "Anda adalah analis sistem senior dan manajer produk. Berikan output teks PRD yang sangat profesional, terstruktur, dan mendalam menggunakan Markdown. Jika diminta JSON, berikan JSON murni tanpa markdown wrapper. Jika ada file yang diunggah, analisis isinya sebagai bagian dari konsep sistem.",
+          systemInstruction: "Anda adalah analis sistem senior dan manajer produk. Berikan output teks PRD yang sangat profesional, terstruktur, dan mendalam menggunakan Markdown. Jika diminta JSON, berikan JSON murni tanpa markdown wrapper. Jika ada file yang diunggah, analisis isinya sebagai bagian dari konsep sistem. Untuk diagram alur atau sequence, WAJIB sertakan blok kode mermaid (misal: ```mermaid ... ```) agar sistem dapat merendernya sebagai GAMBAR visual berkualitas tinggi (Nano Banana style).",
           responseMimeType: isJson ? "application/json" : "text/plain"
         }
       });
@@ -248,6 +355,8 @@ export default function App() {
         "options": ["string", "string", ...],
         "isFreetextOnly": boolean
       }
+      
+      PENTING: JANGAN sertakan opsi "Lainnya" atau "Others" di dalam array "options" karena sistem sudah menyediakan tombol "Lainnya" secara otomatis.
       
       Sertakan opsi jawaban yang relevan untuk setiap pertanyaan jika bukan freetext. Berikan pertanyaan dalam bahasa ${systemIdea.language}.`;
 
@@ -301,8 +410,10 @@ export default function App() {
       PREFERENSI TEKNOLOGI:
       ${techPreference.mode === 'ai' ? 'Berikan rekomendasi stack terbaik berdasarkan AI.' : `Gunakan stack berikut: ${JSON.stringify(techPreference)}`}
       
-      STRUKTUR WAJIB (Poin 1-8):
+      STRUKTUR WAJIB (Poin 1-9):
       ${PRD_STRUCTURE}
+      
+      PENTING: Pada bagian 9, buatlah Sequence Diagram menggunakan sintaks Mermaid. Diagram ini HARUS merepresentasikan alur kerja (workflow) utama yang telah Anda definisikan di Poin 5 (System Workflow) di atas. Pastikan diagram tersebut menggambarkan interaksi teknis antar komponen sistem secara akurat.
       
       Gunakan format Markdown yang sangat rapi, gunakan tabel jika diperlukan untuk skema database atau workflow. Berikan detail teknis yang cukup untuk developer mulai membangun.`;
 
@@ -312,7 +423,14 @@ export default function App() {
       setPrdHistory(newHistory);
       setCurrentVersionIdx(0);
       setStep(5);
-      savePrdToBackend(result);
+      
+      const saved = await savePrdToBackend(result);
+      setSavedPrds(prev => [saved, ...prev]);
+      
+      // Update local count
+      if (currentUser) {
+        setCurrentUser({ ...currentUser, prdGeneratedCount: currentUser.prdGeneratedCount + 1 });
+      }
     } catch (err: any) {
       setError(`Gagal membuat PRD: ${err.message}`);
     } finally {
@@ -405,7 +523,24 @@ export default function App() {
       <div className="max-w-5xl mx-auto px-4 py-12">
         
         {/* Header */}
-        <header className="mb-12 text-center">
+        <header className="mb-12 text-center relative">
+          {currentUser && (
+            <div className="absolute right-0 top-0 flex items-center gap-2">
+              {currentUser.role === 'admin' && (
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => setIsAdminView(!isAdminView)}
+                  className={isAdminView ? "text-blue-600 bg-blue-50" : ""}
+                >
+                  <ShieldCheck className="w-4 h-4 mr-2" /> {isAdminView ? "Member View" : "Admin Panel"}
+                </Button>
+              )}
+              <Button variant="ghost" size="sm" onClick={handleLogout} className="text-red-500 hover:text-red-600 hover:bg-red-50">
+                <LogOut className="w-4 h-4 mr-2" /> Keluar
+              </Button>
+            </div>
+          )}
           <motion.div 
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -413,19 +548,209 @@ export default function App() {
           >
             <Cpu className="w-3 h-3" /> Powered by Gemini 2.0
           </motion.div>
-          <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-4">AI PRD Architect</h1>
+          <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-4">
+            {systemConfig?.landingPageTitle || "AI PRD Architect"}
+          </h1>
           <p className="text-gray-500 max-w-2xl mx-auto">
-            Transformasikan ide mentah Anda menjadi dokumen spesifikasi produk yang profesional dan siap bangun dalam hitungan menit.
+            {systemConfig?.landingPageHero || "Transformasikan ide mentah Anda menjadi dokumen spesifikasi produk yang profesional dan siap bangun dalam hitungan menit."}
           </p>
+          {currentUser && (
+            <div className="mt-4 flex items-center justify-center gap-4">
+              <Badge variant="outline" className="px-3 py-1">
+                <LucideUser className="w-3 h-3 mr-1" /> {currentUser.name} ({currentUser.role})
+              </Badge>
+              <Badge variant="secondary" className="px-3 py-1 bg-blue-100 text-blue-700">
+                <FileText className="w-3 h-3 mr-1" /> {currentUser.prdGeneratedCount} PRD Dibuat
+              </Badge>
+            </div>
+          )}
         </header>
 
-        <StepIndicator />
+        {step > 0 && !isAdminView && <StepIndicator />}
 
         <main className="relative">
           <AnimatePresence mode="wait">
             
+            {/* Step 0: Auth */}
+            {step === 0 && (
+              <motion.div key="auth" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
+                <Card className="max-w-md mx-auto border-none shadow-2xl">
+                  <CardHeader className="text-center">
+                    <CardTitle className="text-2xl">{authMode === 'login' ? 'Selamat Datang Kembali' : 'Buat Akun Baru'}</CardTitle>
+                    <CardDescription>Masuk untuk mulai merancang PRD Anda</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <form onSubmit={handleAuth} className="space-y-4">
+                      {authMode === 'register' && (
+                        <div className="space-y-2">
+                          <Label>Nama Lengkap</Label>
+                          <Input 
+                            required 
+                            placeholder="John Doe" 
+                            value={authData.name} 
+                            onChange={e => setAuthData({...authData, name: e.target.value})} 
+                          />
+                        </div>
+                      )}
+                      <div className="space-y-2">
+                        <Label>Email</Label>
+                        <Input 
+                          required 
+                          type="email" 
+                          placeholder="name@example.com" 
+                          value={authData.email} 
+                          onChange={e => setAuthData({...authData, email: e.target.value})} 
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Password</Label>
+                        <Input 
+                          required 
+                          type="password" 
+                          placeholder="••••••••" 
+                          value={authData.password} 
+                          onChange={e => setAuthData({...authData, password: e.target.value})} 
+                        />
+                      </div>
+                      {error && <div className="p-3 bg-red-50 text-red-600 text-sm rounded-lg flex items-center gap-2"><AlertCircle className="w-4 h-4" /> {error}</div>}
+                      <Button disabled={loading} className="w-full h-12 bg-blue-600 hover:bg-blue-700">
+                        {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : (authMode === 'login' ? 'Masuk' : 'Daftar')}
+                      </Button>
+                    </form>
+                  </CardContent>
+                  <CardFooter className="justify-center">
+                    <button 
+                      onClick={() => setAuthMode(authMode === 'login' ? 'register' : 'login')}
+                      className="text-sm text-blue-600 hover:underline"
+                    >
+                      {authMode === 'login' ? 'Belum punya akun? Daftar' : 'Sudah punya akun? Masuk'}
+                    </button>
+                  </CardFooter>
+                </Card>
+              </motion.div>
+            )}
+
+            {/* Admin Panel */}
+            {isAdminView && currentUser?.role === 'admin' && (
+              <motion.div key="admin" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+                <Tabs defaultValue="users">
+                  <TabsList className="grid grid-cols-4 w-full h-12">
+                    <TabsTrigger value="users"><Users className="w-4 h-4 mr-2" /> Users</TabsTrigger>
+                    <TabsTrigger value="packages"><CreditCard className="w-4 h-4 mr-2" /> Packages</TabsTrigger>
+                    <TabsTrigger value="config"><Settings className="w-4 h-4 mr-2" /> Config</TabsTrigger>
+                    <TabsTrigger value="cms"><Globe className="w-4 h-4 mr-2" /> CMS</TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="users" className="pt-4">
+                    <Card className="border-none shadow-lg">
+                      <CardHeader>
+                        <CardTitle>Manajemen Pengguna</CardTitle>
+                        <CardDescription>Daftar semua member dan aktivitas generate PRD mereka.</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="border-b text-slate-500">
+                                <th className="text-left p-3">Nama</th>
+                                <th className="text-left p-3">Email</th>
+                                <th className="text-left p-3">Role</th>
+                                <th className="text-center p-3">PRD Count</th>
+                                <th className="text-right p-3">Aksi</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {allUsers.map(u => (
+                                <tr key={u.id} className="border-b hover:bg-slate-50">
+                                  <td className="p-3 font-medium">{u.name}</td>
+                                  <td className="p-3 text-slate-500">{u.email}</td>
+                                  <td className="p-3"><Badge variant={u.role === 'admin' ? 'default' : 'secondary'}>{u.role}</Badge></td>
+                                  <td className="p-3 text-center font-mono">{u.prdGeneratedCount}</td>
+                                  <td className="p-3 text-right">
+                                    <Button variant="ghost" size="icon" className="text-red-500"><Trash2 className="w-4 h-4" /></Button>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+
+                  <TabsContent value="packages" className="pt-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {allPackages.map(pkg => (
+                        <Card key={pkg.id} className="border-none shadow-lg">
+                          <CardHeader>
+                            <CardTitle>{pkg.name}</CardTitle>
+                          </CardHeader>
+                          <CardContent className="space-y-4">
+                            <div className="space-y-2">
+                              <Label>Limit Generate</Label>
+                              <Input type="number" defaultValue={pkg.limit} onBlur={e => updatePackage(pkg.id, { limit: parseInt(e.target.value) })} />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Harga (IDR)</Label>
+                              <Input type="number" defaultValue={pkg.price} onBlur={e => updatePackage(pkg.id, { price: parseInt(e.target.value) })} />
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                      <Button variant="outline" className="h-full border-dashed border-2 flex flex-col gap-2 p-8">
+                        <Plus className="w-8 h-8 text-slate-400" />
+                        <span className="text-slate-500">Tambah Package</span>
+                      </Button>
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="config" className="pt-4">
+                    <Card className="border-none shadow-lg">
+                      <CardHeader>
+                        <CardTitle>Konsep API & Sistem</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="space-y-2">
+                          <Label>Gemini API Key</Label>
+                          <Input 
+                            type="password" 
+                            defaultValue={systemConfig?.geminiApiKey} 
+                            onBlur={e => updateSystemConfig({ geminiApiKey: e.target.value })} 
+                          />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+
+                  <TabsContent value="cms" className="pt-4">
+                    <Card className="border-none shadow-lg">
+                      <CardHeader>
+                        <CardTitle>CMS Landing Page</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="space-y-2">
+                          <Label>Judul Utama</Label>
+                          <Input 
+                            defaultValue={systemConfig?.landingPageTitle} 
+                            onBlur={e => updateSystemConfig({ landingPageTitle: e.target.value })} 
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Hero Description</Label>
+                          <Textarea 
+                            defaultValue={systemConfig?.landingPageHero} 
+                            onBlur={e => updateSystemConfig({ landingPageHero: e.target.value })} 
+                          />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+                </Tabs>
+              </motion.div>
+            )}
+            
             {/* Step 1: User Profile */}
-            {step === 1 && (
+            {step === 1 && !isAdminView && (
               <motion.div
                 key="step1"
                 initial={{ opacity: 0, x: 20 }}
@@ -434,7 +759,7 @@ export default function App() {
               >
                 <Card className="border-none shadow-xl shadow-blue-900/5">
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2"><User className="text-blue-600" /> Profil Pengguna</CardTitle>
+                    <CardTitle className="flex items-center gap-2"><LucideUser className="text-blue-600" /> Profil Pengguna</CardTitle>
                     <CardDescription>Beri tahu kami sedikit tentang diri Anda untuk menyesuaikan gaya PRD.</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-6">
@@ -618,7 +943,9 @@ export default function App() {
                           />
                         ) : (
                           <>
-                            {dynamicQuestions[currentScreeningIdx]?.options.map((opt, idx) => (
+                            {dynamicQuestions[currentScreeningIdx]?.options
+                              .filter(opt => !opt.toLowerCase().includes("lainnya") && !opt.toLowerCase().includes("other"))
+                              .map((opt, idx) => (
                               <button 
                                 key={idx} 
                                 onClick={() => {
@@ -827,8 +1154,26 @@ export default function App() {
                       </CardHeader>
                       <CardContent className="p-0 flex-1 overflow-hidden">
                         <ScrollArea className="h-full p-8 bg-white">
-                          <div className="prose prose-slate max-w-none prose-headings:font-bold prose-h1:text-3xl prose-h2:text-2xl prose-h2:mt-8 prose-h2:mb-4 prose-p:text-gray-600 prose-p:leading-relaxed prose-li:text-gray-600 whitespace-pre-wrap font-sans selection:bg-blue-100">
-                            {currentPRD}
+                          <div className="prose prose-slate max-w-none prose-headings:font-bold prose-h1:text-3xl prose-h2:text-2xl prose-h2:mt-8 prose-h2:mb-4 prose-p:text-gray-600 prose-p:leading-relaxed prose-li:text-gray-600 font-sans selection:bg-blue-100">
+                            <ReactMarkdown 
+                              remarkPlugins={[remarkGfm]} 
+                              rehypePlugins={[rehypeRaw]}
+                              components={{
+                                code({ node, inline, className, children, ...props }: any) {
+                                  const match = /language-(\w+)/.exec(className || '');
+                                  if (!inline && match && match[1] === 'mermaid') {
+                                    return <Mermaid chart={String(children).replace(/\n$/, '')} />;
+                                  }
+                                  return (
+                                    <code className={className} {...props}>
+                                      {children}
+                                    </code>
+                                  );
+                                }
+                              }}
+                            >
+                              {currentPRD || ''}
+                            </ReactMarkdown>
                           </div>
                         </ScrollArea>
                       </CardContent>
