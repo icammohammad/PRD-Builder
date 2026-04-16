@@ -35,8 +35,15 @@ export const registerUser = async (email: string, password: string, name: string
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password, name })
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error);
+  
+  let data;
+  try {
+    data = await res.json();
+  } catch (e) {
+    throw new Error("Server returned an invalid response. Please try again.");
+  }
+
+  if (!res.ok) throw new Error(data.error || "Registration failed");
   localStorage.setItem('token', data.token);
   return data.user;
 };
@@ -47,8 +54,15 @@ export const loginUser = async (email: string, password: string) => {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password })
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error);
+  
+  let data;
+  try {
+    data = await res.json();
+  } catch (e) {
+    throw new Error("Server returned an invalid response. Please try again.");
+  }
+
+  if (!res.ok) throw new Error(data.error || "Login failed");
   localStorage.setItem('token', data.token);
   return data.user;
 };

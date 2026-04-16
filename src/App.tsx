@@ -97,6 +97,14 @@ export default function App() {
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [authData, setAuthData] = useState({ email: '', password: '', name: '' });
   const [isAdminView, setIsAdminView] = useState(false);
+  const [systemStatus, setSystemStatus] = useState<{ status: string, message: string } | null>(null);
+
+  useEffect(() => {
+    fetch('/api/health')
+      .then(res => res.json())
+      .then(data => setSystemStatus(data))
+      .catch(() => setSystemStatus({ status: 'error', message: 'Backend unreachable' }));
+  }, []);
 
   // Admin State
   const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
@@ -578,6 +586,12 @@ export default function App() {
                   <CardHeader className="text-center">
                     <CardTitle className="text-2xl">{authMode === 'login' ? 'Selamat Datang Kembali' : 'Buat Akun Baru'}</CardTitle>
                     <CardDescription>Masuk untuk mulai merancang PRD Anda</CardDescription>
+                    {systemStatus && (
+                      <div className={`mt-2 text-[10px] inline-flex items-center gap-1 px-2 py-0.5 rounded-full ${systemStatus.status === 'ok' ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>
+                        <div className={`w-1.5 h-1.5 rounded-full ${systemStatus.status === 'ok' ? 'bg-green-500' : 'bg-red-500'}`} />
+                        {systemStatus.message}
+                      </div>
+                    )}
                   </CardHeader>
                   <CardContent>
                     <form onSubmit={handleAuth} className="space-y-4">

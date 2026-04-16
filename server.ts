@@ -3,11 +3,13 @@ import { createServer as createViteServer } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
 import dotenv from "dotenv";
-import bcrypt from "bcryptjs";
+import * as bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { prisma } from "./src/lib/prisma.ts";
+import { PrismaClient } from "@prisma/client";
 
 dotenv.config();
+
+const prisma = new PrismaClient();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -41,10 +43,23 @@ async function startServer() {
 
   app.use(express.json());
 
+  // Test database connection
+  try {
+    await prisma.$connect();
+    console.log("[DB] Connected to SQLite successfully");
+    const userCount = await prisma.user.count();
+    console.log("[DB] Current user count:", userCount);
+  } catch (err) {
+    console.error("[DB] Connection failed:", err);
+  }
+
   // --- Auth Routes ---
   app.post("/api/auth/register", async (req, res) => {
     const { email, password, name } = req.body;
-    console.log("Registering user:", { email, name });
+    console.log("[AUTH] Registering user:", { email, name });
+    if (!email || !password || !name) {
+      return res.status(400).json({ error: "Email, password, and name are required" });
+    }
     try {
       const hashedPassword = await bcrypt.hash(password, 10);
       const user = await prisma.user.create({
@@ -55,26 +70,37 @@ async function startServer() {
           role: email === "muhammad.hissamudin@gmail.com" ? "admin" : "member"
         }
       });
-      console.log("User created successfully:", user.id);
+      console.log("[AUTH] User created successfully:", user.id);
       const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET);
       res.json({ token, user: { id: user.id, email: user.email, name: user.name, role: user.role } });
     } catch (err: any) {
-      console.error("Registration error:", err);
-      res.status(400).json({ error: "Email already exists or invalid data" });
+      console.error("[AUTH] Registration error:", err);
+      if (err.code === 'P2002') {
+        return res.status(400).json({ error: "Email already exists" });
+      }
+      res.status(500).json({ error: "Internal server error during registration" });
     }
   });
 
   app.post("/api/auth/login", async (req, res) => {
     const { email, password } = req.body;
-    console.log("Login attempt:", email);
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user || !(await bcrypt.compare(password, user.password))) {
-      console.log("Login failed for:", email);
-      return res.status(401).json({ error: "Invalid credentials" });
+    console.log("[AUTH] Login attempt:", email);
+    if (!email || !password) {
+      return res.status(400).json({ error: "Email and password are required" });
     }
-    console.log("Login successful:", user.id);
-    const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET);
-    res.json({ token, user: { id: user.id, email: user.email, name: user.name, role: user.role, prdGeneratedCount: user.prdGeneratedCount } });
+    try {
+      const user = await prisma.user.findUnique({ where: { email } });
+      if (!user || !(await bcrypt.compare(password, user.password))) {
+        console.log("[AUTH] Login failed for:", email);
+        return res.status(401).json({ error: "Invalid credentials" });
+      }
+      console.log("[AUTH] Login successful:", user.id);
+      const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET);
+      res.json({ token, user: { id: user.id, email: user.email, name: user.name, role: user.role, prdGeneratedCount: user.prdGeneratedCount } });
+    } catch (err: any) {
+      console.error("[AUTH] Login error:", err);
+      res.status(500).json({ error: "Internal server error during login" });
+    }
   });
 
   app.get("/api/auth/me", authenticateToken, async (req: any, res) => {
