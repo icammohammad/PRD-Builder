@@ -23,9 +23,12 @@ import {
   Shield,
   Trash2,
   Edit,
-  User as UserIcon
+  User as UserIcon,
+  X,
+  Check
 } from "lucide-react";
-import { User, Role } from "../../types";
+import { User, Role } from "../../../types";
+import { Label } from "@/components/ui/label";
 
 const initialUsers: User[] = [
   { id: "1", name: "Hissamudin", email: "muhammad.hissamudin@gmail.com", role: "admin" },
@@ -38,6 +41,9 @@ const initialUsers: User[] = [
 export function UserManagement() {
   const [users, setUsers] = useState<User[]>(initialUsers);
   const [searchTerm, setSearchTerm] = useState("");
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [isAdding, setIsAdding] = useState(false);
+  const [formData, setFormData] = useState<Partial<User>>({ name: "", email: "", role: "member" });
 
   const filteredUsers = users.filter(user => 
     user.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -48,6 +54,33 @@ export function UserManagement() {
     setUsers(users.filter(u => u.id !== id));
   };
 
+  const handleSave = () => {
+    if (editingUser) {
+      setUsers(users.map(u => u.id === editingUser.id ? { ...u, ...formData } as User : u));
+      setEditingUser(null);
+    } else if (isAdding) {
+      const newUser = {
+        ...formData,
+        id: Math.random().toString(36).substr(2, 9),
+      } as User;
+      setUsers([...users, newUser]);
+      setIsAdding(false);
+    }
+    setFormData({ name: "", email: "", role: "member" });
+  };
+
+  const startEdit = (user: User) => {
+    setEditingUser(user);
+    setFormData(user);
+    setIsAdding(false);
+  };
+
+  const startAdd = () => {
+    setFormData({ name: "", email: "", role: "member" });
+    setIsAdding(true);
+    setEditingUser(null);
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -55,10 +88,56 @@ export function UserManagement() {
           <h2 className="text-3xl font-bold tracking-tight">User Management</h2>
           <p className="text-muted-foreground">Manage and monitor your application users.</p>
         </div>
-        <Button className="gap-2">
+        <Button className="gap-2" onClick={startAdd}>
           <UserPlus className="w-4 h-4" /> Add User
         </Button>
       </div>
+
+      {(isAdding || editingUser) && (
+        <Card className="border-primary/20 bg-primary/5">
+          <CardHeader>
+            <div className="flex justify-between items-center">
+              <CardTitle>{isAdding ? "Add New User" : "Edit User"}</CardTitle>
+              <Button variant="ghost" size="icon" onClick={() => { setIsAdding(false); setEditingUser(null); }}>
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="grid md:grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label>Full Name</Label>
+              <Input 
+                value={formData.name} 
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })} 
+                placeholder="Name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Email</Label>
+              <Input 
+                value={formData.email} 
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })} 
+                placeholder="Email"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Role</Label>
+              <select 
+                className="w-full flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
+                value={formData.role}
+                onChange={(e) => setFormData({ ...formData, role: e.target.value as Role })}
+              >
+                <option value="member">Member</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+          </CardContent>
+          <div className="p-6 pt-0 flex justify-end gap-2">
+            <Button variant="outline" onClick={() => { setIsAdding(false); setEditingUser(null); }}>Cancel</Button>
+            <Button onClick={handleSave}>{editingUser ? "Save Changes" : "Create User"}</Button>
+          </div>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
@@ -120,7 +199,12 @@ export function UserManagement() {
                     </td>
                     <td className="py-4 px-2 text-right">
                       <div className="flex items-center justify-end gap-1">
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground">
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-8 w-8 text-muted-foreground"
+                          onClick={() => startEdit(user)}
+                        >
                           <Edit className="w-3.5 h-3.5" />
                         </Button>
                         <Button 

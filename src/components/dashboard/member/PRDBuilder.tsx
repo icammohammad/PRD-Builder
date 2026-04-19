@@ -48,9 +48,11 @@ import { GoogleGenAI, Type } from "@google/genai";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
-import Mermaid from '../Mermaid';
+import Mermaid from '../../Mermaid';
 import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
+
+import { User } from "../../../types";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
@@ -62,7 +64,11 @@ interface Question {
   icon: React.ReactNode;
 }
 
-export function PRDBuilder() {
+interface PRDBuilderProps {
+  user: User;
+}
+
+export function PRDBuilder({ user }: PRDBuilderProps) {
   const [step, setStep] = useState(0); // 0: Start, 1: Questions, 2: Result
   const [currentQ, setCurrentQ] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -209,6 +215,23 @@ export function PRDBuilder() {
 
       const filePart = uploadedFile ? { mimeType: uploadedFile.type, data: uploadedFile.data } : undefined;
       const result = await callGemini(prompt, false, filePart);
+      
+      // Save to backend
+      try {
+        await fetch("/api/prds", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            content: result,
+            name: appName || "Untitled PRD",
+            concept: concept,
+            userId: user.id
+          })
+        });
+      } catch (saveErr) {
+        console.error("Failed to save PRD to database:", saveErr);
+      }
+
       setPrdHistory([result]);
       setCurrentVersionIdx(0);
       setStep(2);
@@ -293,7 +316,65 @@ export function PRDBuilder() {
         useCORS: true,
         logging: false,
         backgroundColor: "#ffffff",
-        windowWidth: 1200 // Ensure wide enough for side-by-side tables/diagrams
+        windowWidth: 1200,
+        onclone: (clonedDoc) => {
+          // BRUTE FORCE FALLBACK for oklch:
+          // html2canvas fails on oklch. We need to find and replace all instances in the cloned document.
+          
+          const styles = clonedDoc.getElementsByTagName('style');
+          for (let i = 0; i < styles.length; i++) {
+            if (styles[i].innerHTML) {
+              // Replace all oklch() functions with a safe fallback color (slate-800 for foreground, white for bg is risky but gray is safe).
+              // We'll replace it with a generic gray or transparent, as the specific element overrides below should fix important colors.
+              styles[i].innerHTML = styles[i].innerHTML.replace(/oklch\([^)]+\)/g, '#94a3b8');
+            }
+          }
+          
+          // 1. Replace CSS variables in :root
+          const style = clonedDoc.createElement('style');
+          style.innerHTML = `
+            :root {
+              --primary: #0f172a !important;
+              --primary-foreground: #ffffff !important;
+              --background: #ffffff !important;
+              --foreground: #0f172a !important;
+              --card: #ffffff !important;
+              --card-foreground: #0f172a !important;
+              --border: #e2e8f0 !important;
+              --muted: #f1f5f9 !important;
+              --muted-foreground: #64748b !important;
+              --accent: #f1f5f9 !important;
+              --accent-foreground: #0f172a !important;
+              --slate-50: #f8fafc !important;
+              --slate-100: #f1f5f9 !important;
+              --slate-200: #e2e8f0 !important;
+              --slate-800: #1e293b !important;
+              --slate-900: #0f172a !important;
+            }
+            * {
+              color-scheme: light !important;
+            }
+          `;
+          clonedDoc.head.appendChild(style);
+
+          // 2. Recursively find and fix oklch in computed styles or inline styles
+          const allElements = clonedDoc.getElementsByTagName('*');
+          for (let i = 0; i < allElements.length; i++) {
+            const el = allElements[i] as HTMLElement;
+            if (el.style) {
+              // Simple regex to replace anything that looks like oklch with a neutral gray or its fallback
+              // Usually the issue is in the computed style that html2canvas reads
+              // We'll just force important styles to be safe
+              if (el.classList.contains('bg-background')) el.style.backgroundColor = '#ffffff';
+              if (el.classList.contains('text-foreground')) el.style.color = '#0f172a';
+              if (el.classList.contains('border-border')) el.style.borderColor = '#e2e8f0';
+              if (el.classList.contains('text-primary')) el.style.color = '#0f172a';
+              if (el.classList.contains('bg-primary')) el.style.backgroundColor = '#0f172a';
+              if (el.classList.contains('bg-muted')) el.style.backgroundColor = '#f1f5f9';
+              if (el.classList.contains('text-muted-foreground')) el.style.color = '#64748b';
+            }
+          }
+        }
       });
       
       const imgData = canvas.toDataURL('image/png');
@@ -505,11 +586,9 @@ export function PRDBuilder() {
         )}
 
         {step === 2 && currentPRD && (
-          <motion.div
+          <div
             key="result"
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="space-y-8 pb-20"
+            className="space-y-8 pb-20 animate-in fade-in duration-500"
           >
               {/* PRD Content - Single Unified Card */}
               <Card className="border-none shadow-xl shadow-slate-200/40 overflow-hidden">
@@ -623,7 +702,7 @@ export function PRDBuilder() {
                   </Button>
                 </CardFooter>
               </Card>
-          </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </div>

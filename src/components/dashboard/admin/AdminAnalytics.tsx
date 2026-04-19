@@ -52,7 +52,7 @@ export function AdminAnalytics() {
             <CreditCard className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">$45,231.89</div>
+            <div className="text-2xl font-bold">Rp 678.450.000</div>
             <p className="text-xs text-muted-foreground">
               <span className="text-emerald-500 font-medium inline-flex items-center">
                 +20.1% <ArrowUpRight className="w-3 h-3 ml-0.5" />
@@ -136,9 +136,10 @@ export function AdminAnalytics() {
                     fontSize={12} 
                     tickLine={false} 
                     axisLine={false}
-                    tickFormatter={(value) => `$${value}`}
+                    tickFormatter={(value) => `Rp ${value}`}
                   />
                   <Tooltip 
+                    formatter={(value) => [`Rp ${Number(value).toLocaleString('id-ID')}`, 'Revenue']}
                     contentStyle={{ 
                       borderRadius: '12px', 
                       border: 'none', 

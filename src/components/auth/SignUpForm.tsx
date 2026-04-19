@@ -2,25 +2,31 @@ import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Mail, Lock, User } from "lucide-react";
+import { Loader2, Mail, Lock, User as UserIcon, Ticket } from "lucide-react";
 import { motion } from "motion/react";
 
 import { SocialAuth } from "./SocialAuth";
 
 interface SignUpFormProps {
   onLoginClick: () => void;
+  onSignUpSuccess: () => void;
 }
 
-export function SignUpForm({ onLoginClick }: SignUpFormProps) {
+export function SignUpForm({ onLoginClick, onSignUpSuccess }: SignUpFormProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
   async function onSubmit(event: React.SyntheticEvent) {
     event.preventDefault();
     setIsLoading(true);
 
+    // Mock Sign Up
     setTimeout(() => {
       setIsLoading(false);
-    }, 2000);
+      onSignUpSuccess();
+    }, 1500);
   }
 
   return (
@@ -35,7 +41,7 @@ export function SignUpForm({ onLoginClick }: SignUpFormProps) {
           <div className="grid gap-2">
             <Label htmlFor="name">Full Name</Label>
             <div className="relative">
-              <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              <UserIcon className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
               <Input
                 id="name"
                 placeholder="John Doe"
@@ -43,6 +49,8 @@ export function SignUpForm({ onLoginClick }: SignUpFormProps) {
                 autoComplete="name"
                 disabled={isLoading}
                 className="pl-10"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
                 required
               />
             </div>
@@ -60,6 +68,8 @@ export function SignUpForm({ onLoginClick }: SignUpFormProps) {
                 autoCorrect="off"
                 disabled={isLoading}
                 className="pl-10"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 required
               />
             </div>
@@ -75,9 +85,27 @@ export function SignUpForm({ onLoginClick }: SignUpFormProps) {
                 autoComplete="new-password"
                 disabled={isLoading}
                 className="pl-10"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 required
               />
             </div>
+          </div>
+          <div className="grid gap-2">
+            <div className="flex justify-between items-center">
+              <Label htmlFor="referral">Referral Code (Optional)</Label>
+            </div>
+            <div className="relative">
+              <Ticket className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              <Input
+                id="referral"
+                placeholder="E.g. HISSAM2026"
+                type="text"
+                disabled={isLoading}
+                className="pl-10 font-mono text-xs uppercase"
+              />
+            </div>
+            <p className="text-[10px] text-muted-foreground italic">Punya kode? Masukkan untuk mendapatkan bonus pendaftaran.</p>
           </div>
           <Button disabled={isLoading} className="w-full">
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

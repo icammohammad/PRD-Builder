@@ -1,0 +1,71 @@
+datasource db {
+  provider = "sqlite" // Change to "mysql" to use MySQL
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id        String    @id @default(cuid())
+  name      String
+  email     String    @unique
+  password  String
+  role      String    @default("member") // "admin" | "member"
+  packageId String?
+  package   Package?  @relation(fields: [packageId], references: [id])
+  projects  Project[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@map("user")
+}
+
+model Project {
+  id        String   @id @default(cuid())
+  name      String
+  concept   String
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("project")
+}
+
+model Feature {
+  id          String   @id @default(cuid())
+  name        String
+  description String
+  type        String // "boolean" | "quota"
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("feature")
+}
+
+model Package {
+  id        String   @id @default(cuid())
+  name      String
+  price     Float
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  users     User[]
+
+  @@map("package")
+}
+
+model LearningContent {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  category    String
+  url         String
+  isPublished Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("learning_content")
+}

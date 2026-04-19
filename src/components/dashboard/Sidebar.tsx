@@ -7,7 +7,10 @@ import {
   FileText, 
   LogOut,
   Shield,
-  User as UserIcon
+  User as UserIcon,
+  Ticket,
+  Box,
+  GraduationCap
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -24,13 +27,19 @@ export function Sidebar({ user, activeTab, setActiveTab, onLogout }: SidebarProp
   const adminLinks = [
     { id: "analytics", label: "Analytics", icon: LayoutDashboard },
     { id: "users", label: "Users", icon: Users },
+    { id: "features", label: "Master Features", icon: Box },
     { id: "packages", label: "Packages", icon: Package },
-    { id: "settings", label: "App Profile", icon: Settings },
+    { id: "learning-content", label: "Learning Content", icon: GraduationCap },
+    { id: "referrals", label: "Referrals", icon: Ticket },
+    { id: "app-settings", label: "App Settings", icon: Settings },
+    { id: "profile", label: "My Profile", icon: UserIcon },
   ];
 
   const memberLinks = [
+    { id: "overview", label: "Overview", icon: LayoutDashboard },
     { id: "prd-builder", label: "PRD Builder", icon: FileText },
-    { id: "settings", label: "My Profile", icon: Settings },
+    { id: "referrals", label: "Referrals", icon: Ticket },
+    { id: "profile", label: "My Profile", icon: UserIcon },
   ];
 
   const links = user.role === "admin" ? adminLinks : memberLinks;

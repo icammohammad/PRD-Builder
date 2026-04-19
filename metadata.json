@@ -1,5 +1,6 @@
 {
-  "name": "AuthLux - Modern Auth Suite",
+  "name": "PRD Builder AI",
   "description": "A polished, responsive, and animated authentication frontend inspired by Better Auth.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [],
+  "majorCapabilities": []
 }

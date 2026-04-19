@@ -17,7 +17,7 @@ export default function App() {
     setUser({
       id: Math.random().toString(36).substr(2, 9),
       name: role === "admin" ? "Hissamudin" : "Member User",
-      email: role === "admin" ? "admin@authlux.io" : "user@example.com",
+      email: role === "admin" ? "admin@prd-builder.ai" : "user@example.com",
       role: role
     });
   };
@@ -79,10 +79,15 @@ export default function App() {
                     key="login"
                     onSignUpClick={() => setView("signup")}
                     onForgotPasswordClick={() => setView("forgot-password")}
+                    onLoginSuccess={handleLogin}
                 />
                 )}
                 {view === "signup" && (
-                <SignUpForm key="signup" onLoginClick={() => setView("login")} />
+                <SignUpForm 
+                    key="signup" 
+                    onLoginClick={() => setView("login")} 
+                    onSignUpSuccess={() => setView("login")}
+                />
                 )}
                 {view === "forgot-password" && (
                 <ForgotPasswordForm

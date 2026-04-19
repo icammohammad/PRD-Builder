@@ -3,25 +3,31 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, Mail, Lock } from "lucide-react";
-import { motion, AnimatePresence } from "motion/react";
+import { motion } from "motion/react";
 
 import { SocialAuth } from "./SocialAuth";
 
 interface LoginFormProps {
   onSignUpClick: () => void;
   onForgotPasswordClick: () => void;
+  onLoginSuccess: (role: "admin" | "member") => void;
 }
 
-export function LoginForm({ onSignUpClick, onForgotPasswordClick }: LoginFormProps) {
+export function LoginForm({ onSignUpClick, onForgotPasswordClick, onLoginSuccess }: LoginFormProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
   async function onSubmit(event: React.SyntheticEvent) {
     event.preventDefault();
     setIsLoading(true);
 
+    // Mock Login
     setTimeout(() => {
       setIsLoading(false);
-    }, 2000);
+      const role = email.includes("admin") ? "admin" : "member";
+      onLoginSuccess(role);
+    }, 1000);
   }
 
   return (
@@ -46,6 +52,8 @@ export function LoginForm({ onSignUpClick, onForgotPasswordClick }: LoginFormPro
                 autoCorrect="off"
                 disabled={isLoading}
                 className="pl-10"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 required
               />
             </div>
@@ -71,6 +79,8 @@ export function LoginForm({ onSignUpClick, onForgotPasswordClick }: LoginFormPro
                 autoComplete="current-password"
                 disabled={isLoading}
                 className="pl-10"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 required
               />
             </div>

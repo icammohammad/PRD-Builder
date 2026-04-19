@@ -8,10 +8,31 @@ export interface User {
   avatar?: string;
 }
 
+export interface Feature {
+  id: string;
+  name: string;
+  description: string;
+  type: "boolean" | "quota"; // boolean (ceklis) atau quota (jumlah)
+}
+
+export interface PackageFeature {
+  featureId: string;
+  value?: number; // Nilai kuota jika tipenya 'quota'
+}
+
+export interface LearningContent {
+  id: string;
+  title: string;
+  description: string;
+  category: "Video" | "Article" | "Guide";
+  url: string;
+  isPublished: boolean;
+}
+
 export interface Package {
   id: string;
   name: string;
   price: number;
-  features: string[];
+  features: PackageFeature[]; 
   active: boolean;
 }
