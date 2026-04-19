@@ -4,12 +4,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, Mail, Lock, User as UserIcon, Ticket, AlertCircle } from "lucide-react";
 import { motion } from "motion/react";
+import { User } from "../../types";
 
 import { SocialAuth } from "./SocialAuth";
 
 interface SignUpFormProps {
   onLoginClick: () => void;
-  onSignUpSuccess: () => void;
+  onSignUpSuccess: (userData: User, token: string) => void;
 }
 
 export function SignUpForm({ onLoginClick, onSignUpSuccess }: SignUpFormProps) {
@@ -37,7 +38,7 @@ export function SignUpForm({ onLoginClick, onSignUpSuccess }: SignUpFormProps) {
         throw new Error(data.error || "Registration failed");
       }
 
-      onSignUpSuccess();
+      onSignUpSuccess(data.user, data.token);
     } catch (err: any) {
       setError(err.message);
     } finally {

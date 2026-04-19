@@ -7,12 +7,24 @@ import cors from "cors";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { prisma } from "./src/lib/prisma";
+import fs from "fs";
 
 dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
+
+// DB Path check
+const dbPath = path.join(__dirname, "prisma", "dev.db");
+console.log(`Checking DB at: ${dbPath}`);
+if (!fs.existsSync(dbPath)) {
+  console.warn(`WARNING: Database file not found at ${dbPath}`);
+  const rootDbPath = path.join(__dirname, "dev.db");
+  if (fs.existsSync(rootDbPath)) {
+    console.log(`Found DB at root: ${rootDbPath}`);
+  }
+}
 
 async function startServer() {
   const app = express();
@@ -38,6 +50,7 @@ async function startServer() {
   // Auth Routes
   app.post("/api/auth/register", async (req, res) => {
     const { name, email, password, role } = req.body;
+    console.log(`Register attempt: ${email}`);
     try {
       const hashedPassword = await bcrypt.hash(password, 10);
       const user = await prisma.user.create({
@@ -49,8 +62,10 @@ async function startServer() {
         },
       });
       const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET);
+      console.log(`Register success: ${email}`);
       res.status(201).json({ user, token });
     } catch (error: any) {
+      console.error(`Register error: ${error.message}`);
       if (error.code === "P2002") {
         return res.status(400).json({ error: "Email already exists" });
       }
@@ -60,14 +75,25 @@ async function startServer() {
 
   app.post("/api/auth/login", async (req, res) => {
     const { email, password } = req.body;
+    console.log(`Login attempt: ${email}`);
     try {
       const user = await prisma.user.findUnique({ where: { email } });
-      if (!user || !(await bcrypt.compare(password, user.password))) {
+      if (!user) {
+        console.log(`Login failed: User not found - ${email}`);
         return res.status(401).json({ error: "Invalid email or password" });
       }
+      
+      const isPasswordValid = await bcrypt.compare(password, user.password);
+      if (!isPasswordValid) {
+        console.log(`Login failed: Invalid password - ${email}`);
+        return res.status(401).json({ error: "Invalid email or password" });
+      }
+
       const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET);
+      console.log(`Login success: ${email}`);
       res.json({ user, token });
-    } catch (error) {
+    } catch (error: any) {
+      console.error(`Login error: ${error.message}`);
       res.status(500).json({ error: "Login failed" });
     }
   });

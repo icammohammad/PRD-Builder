@@ -13,9 +13,12 @@
     "prisma:sqlite:generate": "prisma generate --schema prisma/schema.sqlite.prisma",
     "prisma:sqlite:migrate": "prisma migrate dev --schema prisma/schema.sqlite.prisma",
     "prisma:sqlite:push": "prisma db push --schema prisma/schema.sqlite.prisma",
+    "prisma:sqlite:seed": "npm run prisma:sqlite:generate && tsx prisma/seed.ts",
     "prisma:mysql:generate": "prisma generate --schema prisma/schema.mysql.prisma",
     "prisma:mysql:migrate": "prisma migrate dev --schema prisma/schema.mysql.prisma",
-    "prisma:mysql:push": "prisma db push --schema prisma/schema.mysql.prisma"
+    "prisma:mysql:push": "prisma db push --schema prisma/schema.mysql.prisma",
+    "prisma:mysql:seed": "npm run prisma:mysql:generate && tsx prisma/seed.ts",
+    "prisma:seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.0",
@@ -25,12 +28,14 @@
     "@tailwindcss/typography": "^0.5.19",
     "@tailwindcss/vite": "^4.1.14",
     "@vitejs/plugin-react": "^5.0.4",
+    "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cors": "^2.8.6",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
     "html2canvas": "^1.4.1",
+    "jsonwebtoken": "^9.0.3",
     "jspdf": "^4.2.1",
     "lucide-react": "^0.546.0",
     "mermaid": "^11.14.0",
@@ -47,8 +52,10 @@
     "vite": "^6.2.0"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
     "@types/cors": "^2.8.19",
     "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^22.14.0",
     "autoprefixer": "^10.4.21",
     "prisma": "^6.4.1",

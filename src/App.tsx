@@ -121,7 +121,7 @@ export default function App() {
                 <SignUpForm 
                     key="signup" 
                     onLoginClick={() => setView("login")} 
-                    onSignUpSuccess={() => setView("login")}
+                    onSignUpSuccess={handleLoginSuccess}
                 />
                 )}
                 {view === "forgot-password" && (
