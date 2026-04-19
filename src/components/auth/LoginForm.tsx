@@ -107,7 +107,7 @@ export function LoginForm({ onSignUpClick, onForgotPasswordClick, onLoginSuccess
               />
             </div>
           </div>
-          <Button disabled={isLoading} className="w-full">
+          <Button type="submit" disabled={isLoading} className="w-full">
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Sign In
           </Button>
