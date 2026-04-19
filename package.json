@@ -4,8 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "tsx server.ts",
-    "build": "npm run prisma:sqlite:generate && vite build",
+    "dev": "npm run prisma:sqlite:generate && tsx server.ts",
+    "build": "npm run prisma:mysql:generate && vite build",
     "start": "node server.ts",
     "preview": "vite preview",
     "clean": "rm -rf dist",
@@ -13,11 +13,11 @@
     "prisma:sqlite:generate": "prisma generate --schema prisma/schema.sqlite.prisma",
     "prisma:sqlite:migrate": "prisma migrate dev --schema prisma/schema.sqlite.prisma",
     "prisma:sqlite:push": "prisma db push --schema prisma/schema.sqlite.prisma",
-    "prisma:sqlite:seed": "npm run prisma:sqlite:generate && tsx prisma/seed.ts",
+    "prisma:sqlite:seed": "tsx prisma/seed.ts",
     "prisma:mysql:generate": "prisma generate --schema prisma/schema.mysql.prisma",
     "prisma:mysql:migrate": "prisma migrate dev --schema prisma/schema.mysql.prisma",
     "prisma:mysql:push": "prisma db push --schema prisma/schema.mysql.prisma",
-    "prisma:mysql:seed": "npm run prisma:mysql:generate && tsx prisma/seed.ts",
+    "prisma:mysql:seed": "tsx prisma/seed.ts",
     "prisma:seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
