@@ -298,7 +298,7 @@ export function PRDBuilder({ user }: PRDBuilderProps) {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `${appName || "App"}_PRD.md`;
+    link.download = `${appName || "App"} v${currentVersionIdx + 1}.md`;
     link.click();
   };
 
@@ -306,80 +306,109 @@ export function PRDBuilder({ user }: PRDBuilderProps) {
     if (!prdRef.current) return;
     setLoading(true);
     try {
-      const element = prdRef.current;
-      const canvas = await html2canvas(element, {
+      // Create an isolated iframe to avoid inheriting tailwind's oklch variables
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'absolute';
+      iframe.style.width = '1200px';
+      iframe.style.height = '0';
+      iframe.style.border = 'none';
+      iframe.style.overflow = 'hidden';
+      document.body.appendChild(iframe);
+
+      const doc = iframe.contentWindow?.document;
+      if (!doc) throw new Error("Failed to create isolated document");
+
+      const htmlContent = prdRef.current.innerHTML;
+
+      doc.open();
+      doc.write(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <style>
+              body { 
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+                line-height: 1.6;
+                color: #0f172a;
+                background: #ffffff;
+                padding: 40px;
+                margin: 0;
+              }
+              h1, h2, h3, h4, h5, h6 { 
+                margin-top: 24px;
+                margin-bottom: 16px;
+                font-weight: 600;
+                line-height: 1.25;
+                color: #0f172a;
+              }
+              h1 { font-size: 2em; border-bottom: 1px solid #e2e8f0; padding-bottom: .3em; }
+              h2 { font-size: 1.5em; border-bottom: 1px solid #e2e8f0; padding-bottom: .3em; }
+              h3 { font-size: 1.25em; }
+              p { margin-top: 0; margin-bottom: 16px; }
+              pre { 
+                background-color: #f8fafc;
+                border-radius: 6px;
+                padding: 16px;
+                overflow: auto;
+                font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+                border: 1px solid #e2e8f0;
+              }
+              code {
+                padding: .2em .4em;
+                margin: 0;
+                font-size: 85%;
+                background-color: #f1f5f9;
+                border-radius: 3px;
+                font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+              }
+              pre code {
+                background-color: transparent;
+                padding: 0;
+              }
+              table {
+                border-collapse: collapse;
+                width: 100%;
+                margin-bottom: 16px;
+              }
+              th, td {
+                padding: 8px 13px;
+                border: 1px solid #e2e8f0;
+              }
+              tr:nth-child(2n) {
+                background-color: #f8fafc;
+              }
+              blockquote {
+                padding: 0 1em;
+                color: #64748b;
+                border-left: .25em solid #cbd5e1;
+                margin: 0 0 16px 0;
+              }
+            </style>
+          </head>
+          <body>
+            ${htmlContent}
+          </body>
+        </html>
+      `);
+      doc.close();
+
+      // Ensure images load before taking canvas
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      const canvas = await html2canvas(doc.body, {
         scale: 2,
         useCORS: true,
         logging: false,
         backgroundColor: "#ffffff",
-        windowWidth: 1200,
-        onclone: (clonedDoc) => {
-          // BRUTE FORCE FALLBACK for oklch:
-          // html2canvas fails on oklch. We need to find and replace all instances in the cloned document.
-          
-          const styles = clonedDoc.getElementsByTagName('style');
-          for (let i = 0; i < styles.length; i++) {
-            if (styles[i].innerHTML) {
-              // Replace all oklch() functions with a safe fallback color (slate-800 for foreground, white for bg is risky but gray is safe).
-              // We'll replace it with a generic gray or transparent, as the specific element overrides below should fix important colors.
-              styles[i].innerHTML = styles[i].innerHTML.replace(/oklch\([^)]+\)/g, '#94a3b8');
-            }
-          }
-          
-          // 1. Replace CSS variables in :root
-          const style = clonedDoc.createElement('style');
-          style.innerHTML = `
-            :root {
-              --primary: #0f172a !important;
-              --primary-foreground: #ffffff !important;
-              --background: #ffffff !important;
-              --foreground: #0f172a !important;
-              --card: #ffffff !important;
-              --card-foreground: #0f172a !important;
-              --border: #e2e8f0 !important;
-              --muted: #f1f5f9 !important;
-              --muted-foreground: #64748b !important;
-              --accent: #f1f5f9 !important;
-              --accent-foreground: #0f172a !important;
-              --slate-50: #f8fafc !important;
-              --slate-100: #f1f5f9 !important;
-              --slate-200: #e2e8f0 !important;
-              --slate-800: #1e293b !important;
-              --slate-900: #0f172a !important;
-            }
-            * {
-              color-scheme: light !important;
-            }
-          `;
-          clonedDoc.head.appendChild(style);
-
-          // 2. Recursively find and fix oklch in computed styles or inline styles
-          const allElements = clonedDoc.getElementsByTagName('*');
-          for (let i = 0; i < allElements.length; i++) {
-            const el = allElements[i] as HTMLElement;
-            if (el.style) {
-              // Simple regex to replace anything that looks like oklch with a neutral gray or its fallback
-              // Usually the issue is in the computed style that html2canvas reads
-              // We'll just force important styles to be safe
-              if (el.classList.contains('bg-background')) el.style.backgroundColor = '#ffffff';
-              if (el.classList.contains('text-foreground')) el.style.color = '#0f172a';
-              if (el.classList.contains('border-border')) el.style.borderColor = '#e2e8f0';
-              if (el.classList.contains('text-primary')) el.style.color = '#0f172a';
-              if (el.classList.contains('bg-primary')) el.style.backgroundColor = '#0f172a';
-              if (el.classList.contains('bg-muted')) el.style.backgroundColor = '#f1f5f9';
-              if (el.classList.contains('text-muted-foreground')) el.style.color = '#64748b';
-            }
-          }
-        }
+        windowWidth: 1200
       });
-      
+
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF('p', 'mm', 'a4');
       const imgProps = pdf.getImageProperties(imgData);
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
       
-      // Handle multiple pages if content is long
       let heightLeft = pdfHeight;
       let position = 0;
       const pageHeight = pdf.internal.pageSize.getHeight();
@@ -394,7 +423,8 @@ export function PRDBuilder({ user }: PRDBuilderProps) {
         heightLeft -= pageHeight;
       }
 
-      pdf.save(`${appName || "App"}_PRD.pdf`);
+      pdf.save(`${appName || "App"} v${currentVersionIdx + 1}.pdf`);
+      document.body.removeChild(iframe);
     } catch (err: any) {
       setError(`Gagal membuat PDF: ${err.message}`);
     } finally {

@@ -137,9 +137,9 @@ async function startServer() {
         },
       });
       res.status(201).json(newProject);
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      res.status(500).json({ error: "Failed to save PRD" });
+      res.status(500).json({ error: "Failed to save PRD", details: error.message });
     }
   });
 
