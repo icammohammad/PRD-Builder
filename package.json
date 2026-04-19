@@ -5,11 +5,17 @@
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
-    "build": "prisma generate && vite build",
+    "build": "npm run prisma:sqlite:generate && vite build",
     "start": "node server.ts",
     "preview": "vite preview",
     "clean": "rm -rf dist",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "prisma:sqlite:generate": "prisma generate --schema prisma/schema.sqlite.prisma",
+    "prisma:sqlite:migrate": "prisma migrate dev --schema prisma/schema.sqlite.prisma",
+    "prisma:sqlite:push": "prisma db push --schema prisma/schema.sqlite.prisma",
+    "prisma:mysql:generate": "prisma generate --schema prisma/schema.mysql.prisma",
+    "prisma:mysql:migrate": "prisma migrate dev --schema prisma/schema.mysql.prisma",
+    "prisma:mysql:push": "prisma db push --schema prisma/schema.mysql.prisma"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.0",
