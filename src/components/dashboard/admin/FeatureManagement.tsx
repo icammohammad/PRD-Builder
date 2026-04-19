@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { 
   Card, 
   CardContent, 
@@ -17,9 +17,11 @@ import {
   Edit, 
   X,
   CheckCircle2,
-  Box
+  Box,
+  Loader2
 } from "lucide-react";
 import { Feature } from "../../../types";
+import { api } from "../../../lib/api";
 
 export const initialFeatures: Feature[] = [
   { id: "f1", name: "PRD Generation Limit", description: "Batas maksimal PRD yang dapat digenerate per bulan.", type: "quota" },
@@ -29,40 +31,65 @@ export const initialFeatures: Feature[] = [
 ];
 
 export function FeatureManagement() {
-  const [features, setFeatures] = useState<Feature[]>(initialFeatures);
+  const [features, setFeatures] = useState<Feature[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState<Partial<Feature>>({ name: "", description: "", type: "boolean" });
+
+  useEffect(() => {
+    fetchFeatures();
+  }, []);
+
+  const fetchFeatures = async () => {
+    setLoading(true);
+    try {
+      const data = await api.get("/api/admin/features");
+      if (Array.isArray(data)) setFeatures(data);
+    } catch (err) {
+      console.error("Failed to fetch features", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredFeatures = features.filter(f => 
     f.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
     f.description.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleSave = () => {
-    if (editingId) {
-      setFeatures(features.map(f => f.id === editingId ? { ...f, ...formData } : f));
-      setEditingId(null);
-    } else {
-      const newFeature = {
-        ...formData,
-        id: `f${Math.random().toString(36).substr(2, 9)}`,
-      } as Feature;
-      setFeatures([...features, newFeature]);
-      setIsAdding(false);
+  const handleSave = async () => {
+    try {
+      if (editingId) {
+        const updated = await api.patch(`/api/admin/features/${editingId}`, formData);
+        setFeatures(features.map(f => f.id === editingId ? updated : f));
+        setEditingId(null);
+      } else {
+        const created = await api.post("/api/admin/features", formData);
+        setFeatures([...features, created]);
+        setIsAdding(false);
+      }
+      setFormData({ name: "", description: "", type: "boolean" });
+    } catch (err) {
+      console.error("Failed to save feature", err);
     }
-    setFormData({ name: "", description: "", type: "boolean" });
+  };
+
+  const deleteFeature = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this feature?")) return;
+    try {
+      await api.delete(`/api/admin/features/${id}`);
+      setFeatures(features.filter(f => f.id !== id));
+    } catch (err) {
+      console.error("Failed to delete feature", err);
+    }
   };
 
   const startEdit = (f: Feature) => {
     setEditingId(f.id);
     setFormData(f);
     setIsAdding(false);
-  };
-
-  const deleteFeature = (id: string) => {
-    setFeatures(features.filter(f => f.id !== id));
   };
 
   return (
@@ -152,8 +179,19 @@ export function FeatureManagement() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {filteredFeatures.map((f) => (
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-12 gap-2 text-muted-foreground">
+              <Loader2 className="h-8 w-8 animate-spin" />
+              <p>Loading features...</p>
+            </div>
+          ) : filteredFeatures.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 gap-2 text-muted-foreground border-2 border-dashed rounded-xl">
+              <Box className="h-8 w-8" />
+              <p>No features found.</p>
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {filteredFeatures.map((f) => (
               <div key={f.id} className="p-4 rounded-xl border bg-card hover:shadow-md transition-all group relative">
                 <div className="flex justify-between items-start mb-2">
                   <div className="p-2 rounded-lg bg-primary/10 text-primary">
@@ -183,6 +221,7 @@ export function FeatureManagement() {
               </div>
             ))}
           </div>
+          )}
         </CardContent>
       </Card>
     </div>

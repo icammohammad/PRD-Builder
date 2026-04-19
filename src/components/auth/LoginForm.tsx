@@ -2,32 +2,48 @@ import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Mail, Lock } from "lucide-react";
+import { Loader2, Mail, Lock, AlertCircle } from "lucide-react";
 import { motion } from "motion/react";
 
 import { SocialAuth } from "./SocialAuth";
+import { User } from "../../types";
 
 interface LoginFormProps {
   onSignUpClick: () => void;
   onForgotPasswordClick: () => void;
-  onLoginSuccess: (role: "admin" | "member") => void;
+  onLoginSuccess: (userData: User, token: string) => void;
 }
 
 export function LoginForm({ onSignUpClick, onForgotPasswordClick, onLoginSuccess }: LoginFormProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
   async function onSubmit(event: React.SyntheticEvent) {
     event.preventDefault();
     setIsLoading(true);
+    setError(null);
 
-    // Mock Login
-    setTimeout(() => {
+    try {
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Login failed");
+      }
+
+      onLoginSuccess(data.user, data.token);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
       setIsLoading(false);
-      const role = email.includes("admin") ? "admin" : "member";
-      onLoginSuccess(role);
-    }, 1000);
+    }
   }
 
   return (
@@ -39,6 +55,12 @@ export function LoginForm({ onSignUpClick, onForgotPasswordClick, onLoginSuccess
     >
       <form onSubmit={onSubmit}>
         <div className="grid gap-4">
+          {error && (
+            <div className="bg-destructive/15 text-destructive text-xs p-3 rounded-lg flex items-center gap-2">
+              <AlertCircle className="h-4 w-4" />
+              {error}
+            </div>
+          )}
           <div className="grid gap-2">
             <Label htmlFor="email">Email</Label>
             <div className="relative">

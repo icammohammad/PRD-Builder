@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { AnimatePresence } from "motion/react";
 import { AuthLayout } from "./components/auth/AuthLayout";
 import { LoginForm } from "./components/auth/LoginForm";
@@ -12,14 +12,41 @@ type AuthView = "login" | "signup" | "forgot-password";
 export default function App() {
   const [view, setView] = useState<AuthView>("login");
   const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const handleLogin = (role: Role) => {
-    setUser({
-      id: Math.random().toString(36).substr(2, 9),
-      name: role === "admin" ? "Hissamudin" : "Member User",
-      email: role === "admin" ? "admin@prd-builder.ai" : "user@example.com",
-      role: role
-    });
+  useEffect(() => {
+    const checkAuth = async () => {
+      const token = localStorage.getItem("token");
+      if (token) {
+        try {
+          const res = await fetch("/api/auth/me", {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          });
+          if (res.ok) {
+            const userData = await res.json();
+            setUser(userData);
+          } else {
+            localStorage.removeItem("token");
+          }
+        } catch (error) {
+          console.error("Auth check failed", error);
+        }
+      }
+      setLoading(false);
+    };
+    checkAuth();
+  }, []);
+
+  const handleLoginSuccess = (userData: User, token: string) => {
+    localStorage.setItem("token", token);
+    setUser(userData);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    setUser(null);
   };
 
   const getHeaderInfo = () => {
@@ -42,36 +69,44 @@ export default function App() {
     }
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
   if (user) {
     return (
       <DashboardLayout 
         user={user} 
-        onLogout={() => setUser(null)} 
+        onLogout={handleLogout} 
       />
     );
   }
 
   const { title, description } = getHeaderInfo();
 
+  // Test credentials helper
+  const quickLogin = async (email: string, pass: string) => {
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password: pass }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        handleLoginSuccess(data.user, data.token);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   return (
     <div className="relative overflow-hidden">
-        {/* Quick Role Select (Developer Tool) */}
-        <div className="fixed top-4 right-4 z-50 flex gap-2 p-2 bg-card border rounded-xl shadow-lg animate-in fade-in slide-in-from-top-2 duration-700 delay-500">
-            <span className="text-[10px] uppercase font-bold text-muted-foreground self-center mr-2">Quick Login:</span>
-            <button 
-                onClick={() => handleLogin("admin")}
-                className="px-3 py-1 text-[10px] font-bold uppercase rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors"
-            >
-                Admin
-            </button>
-            <button 
-                onClick={() => handleLogin("member")}
-                className="px-3 py-1 text-[10px] font-bold uppercase rounded-md bg-slate-800 text-white hover:bg-slate-900 transition-colors"
-            >
-                Member
-            </button>
-        </div>
-
         <AuthLayout title={title} description={description}>
             <AnimatePresence mode="wait">
                 {view === "login" && (
@@ -79,7 +114,7 @@ export default function App() {
                     key="login"
                     onSignUpClick={() => setView("signup")}
                     onForgotPasswordClick={() => setView("forgot-password")}
-                    onLoginSuccess={handleLogin}
+                    onLoginSuccess={handleLoginSuccess}
                 />
                 )}
                 {view === "signup" && (

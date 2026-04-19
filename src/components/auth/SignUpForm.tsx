@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Mail, Lock, User as UserIcon, Ticket } from "lucide-react";
+import { Loader2, Mail, Lock, User as UserIcon, Ticket, AlertCircle } from "lucide-react";
 import { motion } from "motion/react";
 
 import { SocialAuth } from "./SocialAuth";
@@ -17,16 +17,32 @@ export function SignUpForm({ onLoginClick, onSignUpSuccess }: SignUpFormProps) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
   async function onSubmit(event: React.SyntheticEvent) {
     event.preventDefault();
     setIsLoading(true);
+    setError(null);
 
-    // Mock Sign Up
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      const response = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email, password }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Registration failed");
+      }
+
       onSignUpSuccess();
-    }, 1500);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   return (
@@ -38,6 +54,12 @@ export function SignUpForm({ onLoginClick, onSignUpSuccess }: SignUpFormProps) {
     >
       <form onSubmit={onSubmit}>
         <div className="grid gap-4">
+          {error && (
+            <div className="bg-destructive/15 text-destructive text-xs p-3 rounded-lg flex items-center gap-2">
+              <AlertCircle className="h-4 w-4" />
+              {error}
+            </div>
+          )}
           <div className="grid gap-2">
             <Label htmlFor="name">Full Name</Label>
             <div className="relative">

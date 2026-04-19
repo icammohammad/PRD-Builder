@@ -22,6 +22,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { User } from "../../../types";
 import { Progress } from "@/components/ui/progress";
+import { api } from "../../../lib/api";
 
 interface MemberDashboardProps {
   user: User;
@@ -32,8 +33,7 @@ export function MemberDashboard({ user }: MemberDashboardProps) {
   const [totalPrds, setTotalPrds] = useState(0);
 
   useEffect(() => {
-    fetch("/api/prds")
-      .then(res => res.json())
+    api.get("/api/prds")
       .then(data => {
         if (Array.isArray(data)) {
           setRecentItems(data.slice(0, 3));

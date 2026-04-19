@@ -51,6 +51,7 @@ import rehypeRaw from 'rehype-raw';
 import Mermaid from '../../Mermaid';
 import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
+import { api } from "../../../lib/api";
 
 import { User } from "../../../types";
 
@@ -218,15 +219,10 @@ export function PRDBuilder({ user }: PRDBuilderProps) {
       
       // Save to backend
       try {
-        await fetch("/api/prds", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            content: result,
-            name: appName || "Untitled PRD",
-            concept: concept,
-            userId: user.id
-          })
+        await api.post("/api/prds", {
+          content: result,
+          name: appName || "Untitled PRD",
+          concept: concept,
         });
       } catch (saveErr) {
         console.error("Failed to save PRD to database:", saveErr);

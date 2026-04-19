@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { 
   Card, 
   CardContent, 
@@ -25,48 +25,67 @@ import {
   Edit,
   User as UserIcon,
   X,
-  Check
+  Check,
+  Loader2
 } from "lucide-react";
 import { User, Role } from "../../../types";
 import { Label } from "@/components/ui/label";
-
-const initialUsers: User[] = [
-  { id: "1", name: "Hissamudin", email: "muhammad.hissamudin@gmail.com", role: "admin" },
-  { id: "2", name: "Jane Smith", email: "jane@example.com", role: "member" },
-  { id: "3", name: "Bob Wilson", email: "bob@wilson.com", role: "member" },
-  { id: "4", name: "Alice Brown", email: "alice@brown.co", role: "member" },
-  { id: "5", name: "Charlie Davis", email: "charlie@davis.dev", role: "member" },
-];
+import { api } from "../../../lib/api";
 
 export function UserManagement() {
-  const [users, setUsers] = useState<User[]>(initialUsers);
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const [formData, setFormData] = useState<Partial<User>>({ name: "", email: "", role: "member" });
+
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  const fetchUsers = async () => {
+    setLoading(true);
+    try {
+      const data = await api.get("/api/admin/users");
+      if (Array.isArray(data)) setUsers(data);
+    } catch (err) {
+      console.error("Failed to fetch users", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredUsers = users.filter(user => 
     user.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
     user.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const deleteUser = (id: string) => {
-    setUsers(users.filter(u => u.id !== id));
+  const deleteUser = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this user?")) return;
+    try {
+      await api.delete(`/api/admin/users/${id}`);
+      setUsers(users.filter(u => u.id !== id));
+    } catch (err) {
+      console.error("Failed to delete user", err);
+    }
   };
 
-  const handleSave = () => {
-    if (editingUser) {
-      setUsers(users.map(u => u.id === editingUser.id ? { ...u, ...formData } as User : u));
-      setEditingUser(null);
-    } else if (isAdding) {
-      const newUser = {
-        ...formData,
-        id: Math.random().toString(36).substr(2, 9),
-      } as User;
-      setUsers([...users, newUser]);
-      setIsAdding(false);
+  const handleSave = async () => {
+    try {
+      if (editingUser) {
+        const updated = await api.patch(`/api/admin/users/${editingUser.id}`, { role: formData.role });
+        setUsers(users.map(u => u.id === editingUser.id ? { ...u, role: formData.role } as User : u));
+        setEditingUser(null);
+      } else if (isAdding) {
+        // Registration is usually handled via Auth, but we can implement an admin create if needed
+        // For now, let's just allow role editing of existing users
+        setIsAdding(false);
+      }
+      setFormData({ name: "", email: "", role: "member" });
+    } catch (err) {
+      console.error("Failed to save user changes", err);
     }
-    setFormData({ name: "", email: "", role: "member" });
   };
 
   const startEdit = (user: User) => {
@@ -158,8 +177,19 @@ export function UserManagement() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-12 gap-2 text-muted-foreground">
+              <Loader2 className="h-8 w-8 animate-spin" />
+              <p>Loading users...</p>
+            </div>
+          ) : filteredUsers.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 gap-2 text-muted-foreground border-2 border-dashed rounded-xl">
+              <UserIcon className="h-8 w-8" />
+              <p>No users found.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
               <thead>
                 <tr className="border-b text-muted-foreground font-medium">
                   <th className="text-left py-4 px-2">User</th>
@@ -222,6 +252,7 @@ export function UserManagement() {
               </tbody>
             </table>
           </div>
+          )}
         </CardContent>
       </Card>
     </div>
