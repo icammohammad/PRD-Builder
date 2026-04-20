@@ -298,7 +298,7 @@ export function PRDBuilder({ user }: PRDBuilderProps) {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `${appName || "App"} v${currentVersionIdx + 1}.md`;
+    link.download = `${appName.replace(/\s+/g, '-') || "App"}-v${currentVersionIdx + 1}.md`;
     link.click();
   };
 
@@ -423,7 +423,7 @@ export function PRDBuilder({ user }: PRDBuilderProps) {
         heightLeft -= pageHeight;
       }
 
-      pdf.save(`${appName || "App"} v${currentVersionIdx + 1}.pdf`);
+      pdf.save(`${appName.replace(/\s+/g, '-') || "App"}-v${currentVersionIdx + 1}.pdf`);
       document.body.removeChild(iframe);
     } catch (err: any) {
       setError(`Gagal membuat PDF: ${err.message}`);
@@ -434,13 +434,29 @@ export function PRDBuilder({ user }: PRDBuilderProps) {
 
   return (
     <div className="max-w-4xl space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center bg-white/50 p-4 rounded-2xl border border-slate-200/60 backdrop-blur-sm shadow-sm sticky top-0 z-10">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">AI PRD Builder</h2>
-          <p className="text-muted-foreground">Architect your product requirements with Gemini 3 Pro.</p>
+          <h2 className="text-2xl font-bold tracking-tight text-slate-900">AI PRD Builder</h2>
+          <p className="text-sm text-muted-foreground flex items-center gap-1.5">
+            <ShieldCheck className="w-4 h-4 text-primary" /> Architecting with Gemini 3 Pro
+          </p>
         </div>
-        <div className="flex gap-2">
-            <Button variant="outline" size="sm" className="gap-2" onClick={() => {
+        <div className="flex items-center gap-2">
+            {step === 2 && currentPRD && (
+              <div className="flex items-center gap-2 mr-2 border-r pr-2">
+                <Button variant="ghost" size="sm" onClick={handleCopy} className="h-9 gap-2">
+                  <Copy className="w-4 h-4" /> <span className="hidden sm:inline">Copy</span>
+                </Button>
+                <Button variant="ghost" size="sm" onClick={handleDownload} className="h-9 gap-2" title="Download Markdown">
+                  <Download className="w-4 h-4" /> <span className="hidden sm:inline">MD</span>
+                </Button>
+                <Button variant="default" size="sm" onClick={handleDownloadPDF} disabled={loading} className="h-9 gap-2 shadow-sm">
+                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
+                  <span className="hidden sm:inline">Download PDF</span>
+                </Button>
+              </div>
+            )}
+            <Button variant="outline" size="sm" className="h-9 gap-2" onClick={() => {
               setStep(0);
               setCurrentQ(0);
               setConcept("");
@@ -448,7 +464,7 @@ export function PRDBuilder({ user }: PRDBuilderProps) {
               setPrdHistory([]);
               setCurrentVersionIdx(-1);
             }}>
-                <Plus className="w-4 h-4" /> New PRD
+                <Plus className="w-4 h-4" /> <span className="hidden lg:inline">New PRD</span>
             </Button>
         </div>
       </div>
@@ -618,53 +634,38 @@ export function PRDBuilder({ user }: PRDBuilderProps) {
           >
               {/* PRD Content - Single Unified Card */}
               <Card className="border-none shadow-xl shadow-slate-200/40 overflow-hidden">
-                <CardHeader className="border-b bg-slate-50/50 py-6">
-                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                <CardHeader className="border-b bg-slate-50/30 py-4 px-6">
+                  <div className="flex justify-between items-center">
                     <div className="flex items-center gap-3">
-                      <div className="p-2 bg-primary/10 text-primary rounded-lg">
-                        <FileText className="w-5 h-5" />
+                      <div className="p-1.5 bg-primary/10 text-primary rounded-md">
+                        <FileText className="w-4 h-4" />
                       </div>
-                      <div>
-                        <CardTitle className="text-xl font-bold tracking-tight">Product Requirements Document</CardTitle>
-                        <CardDescription>{appName || "Comprehensive architecture and functional specification"}</CardDescription>
-                      </div>
+                      <CardTitle className="text-lg font-bold tracking-tight">{appName || "PRD Document"}</CardTitle>
                     </div>
                     
-                    <div className="flex items-center gap-2">
-                      <Button variant="outline" size="sm" onClick={handleCopy} className="gap-2">
-                        <Copy className="w-4 h-4" /> Copy
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={handleDownload} className="gap-2" title="Download Markdown">
-                        <Download className="w-4 h-4" /> MD
-                      </Button>
-                      <Button variant="default" size="sm" onClick={handleDownloadPDF} disabled={loading} className="gap-2 shadow-sm">
-                        {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
-                        Download PDF
-                      </Button>
-                      {prdHistory.length > 1 && (
-                        <div className="flex border rounded-lg overflow-hidden shrink-0 bg-white">
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="h-8 w-8 rounded-none border-r" 
-                            disabled={currentVersionIdx === 0}
-                            onClick={() => setCurrentVersionIdx(v => v - 1)}
-                          >
-                            <ChevronLeft className="w-4 h-4" />
-                          </Button>
-                          <div className="flex items-center px-3 text-[10px] font-bold text-muted-foreground uppercase tracking-tighter">v{currentVersionIdx + 1}</div>
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="h-8 w-8 rounded-none border-l"
-                            disabled={currentVersionIdx === prdHistory.length - 1}
-                            onClick={() => setCurrentVersionIdx(v => v + 1)}
-                          >
-                            <ChevronRight className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      )}
-                    </div>
+                    {prdHistory.length > 1 && (
+                      <div className="flex items-center gap-1 border rounded-lg overflow-hidden bg-white shadow-sm">
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-7 w-7 rounded-none border-r hover:bg-slate-50" 
+                          disabled={currentVersionIdx === 0}
+                          onClick={() => setCurrentVersionIdx(v => v - 1)}
+                        >
+                          <ChevronLeft className="w-3.5 h-3.5" />
+                        </Button>
+                        <div className="px-2 text-[10px] font-black text-slate-500 uppercase tracking-widest">v{currentVersionIdx + 1}</div>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-7 w-7 rounded-none border-l hover:bg-slate-50"
+                          disabled={currentVersionIdx === prdHistory.length - 1}
+                          onClick={() => setCurrentVersionIdx(v => v + 1)}
+                        >
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </CardHeader>
                 <CardContent ref={prdRef} className="p-8 prose prose-slate max-w-none prose-sm md:prose-base dark:prose-invert bg-white">

@@ -128,9 +128,10 @@ async function startServer() {
     }
 
     try {
+      const projectName = (name || "Untitled PRD").substring(0, 255);
       const newProject = await prisma.project.create({
         data: {
-          name: name || "Untitled PRD",
+          name: projectName,
           concept: concept || "",
           content: content,
           userId: req.user.id,
