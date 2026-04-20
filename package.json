@@ -4,8 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "npm run prisma:sqlite:generate && tsx server.ts",
-    "build": "npm run prisma:mysql:generate && vite build",
+    "dev": "tsx server.ts",
+    "build": "prisma generate && vite build",
     "start": "node server.ts",
     "preview": "vite preview",
     "clean": "rm -rf dist",

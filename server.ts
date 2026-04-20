@@ -30,6 +30,17 @@ async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
 
+  const dbUrl = process.env.DATABASE_URL || "";
+  const maskedUrl = dbUrl.replace(/\/\/.*@/, "//***:***@");
+  console.log(`[Database] Connecting to: ${maskedUrl}`);
+
+  try {
+    await prisma.$connect();
+    console.log("[Database] Connected successfully.");
+  } catch (err) {
+    console.error("[Database] Connection failed:", err);
+  }
+
   app.use(cors());
   app.use(express.json());
 
@@ -128,7 +139,7 @@ async function startServer() {
     }
 
     try {
-      const projectName = (name || "Untitled PRD").substring(0, 255);
+      const projectName = (name || "Untitled PRD").slice(0, 190);
       const newProject = await prisma.project.create({
         data: {
           name: projectName,
