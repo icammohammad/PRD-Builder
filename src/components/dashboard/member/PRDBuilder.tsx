@@ -110,67 +110,99 @@ export function PRDBuilder({ user }: PRDBuilderProps) {
     { id: 10, question: "Apakah ada batasan teknologi tertentu?", options: ["Harus Open Source", "Harus Cloud Native", "Bebas/Rekomendasi AI"], icon: <Settings className="w-4 h-4" /> },
   ], []);
 
-  const callGemini = async (prompt: string, isJson = false, fileData?: { mimeType: string, data: string }) => {
-    try {
-      const contents: any[] = [{ text: prompt }];
-      
-      if (fileData) {
-        contents.unshift({
-          inlineData: {
-            mimeType: fileData.mimeType,
-            data: fileData.data
+  const callGemini = async (prompt: string, isJson = false, fileData?: { mimeType: string, data: string }, retries = 3) => {
+    let lastError;
+    for (let i = 0; i < retries; i++) {
+      try {
+        const contents: any[] = [{ text: prompt }];
+        
+        if (fileData) {
+          contents.unshift({
+            inlineData: {
+              mimeType: fileData.mimeType,
+              data: fileData.data
+            }
+          });
+        }
+
+        const response = await ai.models.generateContent({
+          model: "gemini-3-flash-preview",
+          contents: { parts: contents },
+          config: {
+            systemInstruction: "Anda adalah analis sistem senior dan manajer produk. Berikan output teks PRD yang sangat profesional, terstruktur, dan mendalam menggunakan Markdown. Jika ada file yang diunggah, analisis isinya sebagai bagian dari konsep sistem. Untuk diagram alur atau sequence, WAJIB sertakan blok kode mermaid (misal: ```mermaid ... ```) agar sistem dapat merendernya sebagai GAMBAR visual berkualitas tinggi.",
+            responseMimeType: isJson ? "application/json" : "text/plain"
           }
         });
-      }
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: { parts: contents },
-        config: {
-          systemInstruction: "Anda adalah analis sistem senior dan manajer produk. Berikan output teks PRD yang sangat profesional, terstruktur, dan mendalam menggunakan Markdown. Jika ada file yang diunggah, analisis isinya sebagai bagian dari konsep sistem. Untuk diagram alur atau sequence, WAJIB sertakan blok kode mermaid (misal: ```mermaid ... ```) agar sistem dapat merendernya sebagai GAMBAR visual berkualitas tinggi.",
-          responseMimeType: isJson ? "application/json" : "text/plain"
+        const textResponse = response.text;
+        if (!textResponse) throw new Error("Respon AI kosong.");
+        return isJson ? JSON.parse(textResponse.replace(/```json\n?|\n?```/g, "").trim()) : textResponse;
+      } catch (err: any) {
+        lastError = err;
+        // Retry only on 503 or transient network errors
+        if (err.message?.includes("503") || err.message?.includes("high demand") || err.message?.includes("fetch")) {
+          await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1))); // Exponential backoff style
+          continue;
         }
-      });
-
-      const textResponse = response.text;
-      if (!textResponse) throw new Error("Respon AI kosong.");
-      return isJson ? JSON.parse(textResponse) : textResponse;
-    } catch (err: any) {
-      throw err;
+        throw err;
+      }
     }
+    throw lastError;
   };
 
   const generateDynamicQuestions = async () => {
     setLoading(true);
     setError(null);
     try {
-      const prompt = `Analisis konsep aplikasi berikut dan berikan 5-7 pertanyaan tambahan yang sangat relevan untuk membantu menyusun PRD yang mendalam.
+      const prompt = `Analisis konsep aplikasi ini: "${concept}". 
+      ${uploadedFile ? "Analisis juga file yang diunggah sebagai konteks." : ""}
       
-      KONSEP: ${concept}
-      ${uploadedFile ? "Analisis juga file yang diunggah untuk mendapatkan konteks tambahan." : ""}
-      
-      Output harus dalam format JSON ARRAY yang berisi objek dengan struktur:
+      Buat 10 pertanyaan screening yang sangat matang dan dinamis untuk membantu menyusun PRD yang detail.
+      Pastikan pertanyaan mencakup aspek-aspek krusial namun spesifik terhadap ide ini:
+      1. Target Audiens Khusus (bukan general)
+      2. Unique Selling Point / Diferensiasi
+      3. Komponen Teknis Prioritas (Frontend/Backend/Integration)
+      4. Alur Kerja utama yang paling kompleks
+      5. Kebutuhan Data & Keamanan spesifik
+      6. Scalability & Target Traffic
+      7. Integrasi Third Party yang relevan
+      8. Monetisasi/Business Value
+      9. UX/UI direction (minimalist, data-heavy, game-like, etc)
+      10. Kendala atau Batasan yang mungkin dihadapi (Legacy, Budget, Time)
+
+      Output harus dalam format JSON ARRAY yang berisi tepat 10 objek dengan struktur:
       {
         "id": number,
         "question": "string",
-        "options": ["string", "string", ...],
+        "options": ["opsi 1", "opsi 2", "opsi 3", "opsi 4"],
         "isFreetextOnly": boolean
       }
       
-      Sertakan opsi jawaban yang relevan untuk setiap pertanyaan jika bukan freetext. Berikan pertanyaan dalam bahasa Indonesia.`;
+      Berikan pertanyaan dalam bahasa Indonesia yang profesional. Jika pertanyaan butuh penjelasan panjang, set isFreetextOnly: true. Jika ada pilihan ganda, berikan 4 opsi yang variatif.`;
 
       const filePart = uploadedFile ? { mimeType: uploadedFile.type, data: uploadedFile.data } : undefined;
       const dQuestions = await callGemini(prompt, true, filePart);
       
-      const icons = [<Users className="w-4 h-4" />, <Zap className="w-4 h-4" />, <ShieldCheck className="w-4 h-4" />, <Database className="w-4 h-4" />, <Smartphone className="w-4 h-4" />, <BarChart3 className="w-4 h-4" />, <LayoutDashboard className="w-4 h-4" />];
+      const icons = [
+        <Users className="w-4 h-4" />, 
+        <LayoutDashboard className="w-4 h-4" />, 
+        <Smartphone className="w-4 h-4" />, 
+        <Zap className="w-4 h-4" />, 
+        <ShieldCheck className="w-4 h-4" />, 
+        <Database className="w-4 h-4" />, 
+        <BarChart3 className="w-4 h-4" />, 
+        <CreditCard className="w-4 h-4" />,
+        <Settings className="w-4 h-4" />,
+        <AlertCircle className="w-4 h-4" />
+      ];
       
       const formattedQuestions = dQuestions.map((q: any, idx: number) => ({
         ...q,
-        id: q.id + 100, // Offset to avoid collision with standard questions
+        id: idx + 1,
         icon: icons[idx % icons.length]
       }));
 
-      setDynamicQuestions([...screeningQuestions, ...formattedQuestions]);
+      setDynamicQuestions(formattedQuestions);
       
       const namePrompt = `Berdasarkan konsep ini: "${concept}", berikan 1 nama aplikasi yang paling cocok (hanya nama saja, maks 3 kata).`;
       const nameResult = await callGemini(namePrompt);
