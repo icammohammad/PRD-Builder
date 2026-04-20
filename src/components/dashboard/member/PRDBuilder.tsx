@@ -110,7 +110,7 @@ export function PRDBuilder({ user }: PRDBuilderProps) {
     { id: 10, question: "Apakah ada batasan teknologi tertentu?", options: ["Harus Open Source", "Harus Cloud Native", "Bebas/Rekomendasi AI"], icon: <Settings className="w-4 h-4" /> },
   ], []);
 
-  const callGemini = async (prompt: string, isJson = false, fileData?: { mimeType: string, data: string }, retries = 3) => {
+  const callGemini = async (prompt: string, isJson = false, fileData?: { mimeType: string, data: string }, retries = 5) => {
     let lastError;
     for (let i = 0; i < retries; i++) {
       try {
@@ -139,13 +139,30 @@ export function PRDBuilder({ user }: PRDBuilderProps) {
         return isJson ? JSON.parse(textResponse.replace(/```json\n?|\n?```/g, "").trim()) : textResponse;
       } catch (err: any) {
         lastError = err;
-        // Retry only on 503 or transient network errors
-        if (err.message?.includes("503") || err.message?.includes("high demand") || err.message?.includes("fetch")) {
-          await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1))); // Exponential backoff style
+        const errStr = String(err).toLowerCase();
+        const errMsg = err.message?.toLowerCase() || "";
+        
+        // Retry on 503, 429, or high demand messages
+        if (
+          errStr.includes("503") || 
+          errMsg.includes("503") || 
+          errMsg.includes("high demand") || 
+          errMsg.includes("temporary") ||
+          errMsg.includes("unavailable") ||
+          errStr.includes("fetch")
+        ) {
+          // Exponential backoff: 2s, 4s, 8s, 16s...
+          const delay = Math.pow(2, i + 1) * 1000;
+          console.warn(`Gemini 503 detected, retrying in ${delay}ms... (Attempt ${i + 1}/${retries})`);
+          await new Promise(resolve => setTimeout(resolve, delay));
           continue;
         }
         throw err;
       }
+    }
+    // If we've exhausted retries, throw a user-friendly error if it's still a 503
+    if (String(lastError).includes("503") || lastError.message?.includes("demand")) {
+      throw new Error("Layanan AI sedang sangat padat saat ini (Error 503). Kami telah mencoba 5 kali namun tetap gagal. Silakan tunggu 1-2 menit lalu coba lagi, atau coba ubah sedikit deskripsi konsep Anda.");
     }
     throw lastError;
   };
@@ -154,23 +171,27 @@ export function PRDBuilder({ user }: PRDBuilderProps) {
     setLoading(true);
     setError(null);
     try {
-      const prompt = `Analisis konsep aplikasi ini: "${concept}". 
-      ${uploadedFile ? "Analisis juga file yang diunggah sebagai konteks." : ""}
+      const prompt = `Analisis secara mendalam konsep aplikasi ini: "${concept}". 
+      ${uploadedFile ? "Analisis juga file yang diunggah sebagai konteks teknis atau bisnis tambahan." : ""}
       
-      Buat 10 pertanyaan screening yang sangat matang dan dinamis untuk membantu menyusun PRD yang detail.
-      Pastikan pertanyaan mencakup aspek-aspek krusial namun spesifik terhadap ide ini:
-      1. Target Audiens Khusus (bukan general)
-      2. Unique Selling Point / Diferensiasi
-      3. Komponen Teknis Prioritas (Frontend/Backend/Integration)
-      4. Alur Kerja utama yang paling kompleks
-      5. Kebutuhan Data & Keamanan spesifik
-      6. Scalability & Target Traffic
-      7. Integrasi Third Party yang relevan
-      8. Monetisasi/Business Value
-      9. UX/UI direction (minimalist, data-heavy, game-like, etc)
-      10. Kendala atau Batasan yang mungkin dihadapi (Legacy, Budget, Time)
+      Tujuan: Membuat 10 pertanyaan screening yang sangat matang, tajam, dan 100% dinamis untuk membantu menyusun PRD yang komprehensif.
+      
+      Aturan pembuatan pertanyaan:
+      - Hindari pertanyaan generik seperti "Siapa audiensnya?"
+      - Buat pertanyaan yang menantang logika sistem, misal: "Bagaimana sistem menangani [kasus spesifik ide ini]?"
+      - Pertanyaan harus mencakup: 
+        1. Diferensiasi pasar yang unik untuk ide ini.
+        2. Fitur 'Killer' yang paling sulit diimplementasikan.
+        3. Alur data atau proses bisnis yang paling krusial.
+        4. Kebutuhan integrasi spesifik (misal: API eksternal tertentu).
+        5. Model data atau entitas utama yang perlu didefinisikan.
+        6. Strategi pertumbuhan atau retensi pengguna.
+        7. Aspek keamanan atau kepatuhan (compliance) yang relevan.
+        8. Pengalaman pengguna (UX) yang ingin ditonjolkan.
+        9. Kebutuhan laporan atau dashboard analytics.
+        10. Rencana pengembangan jangka panjang (scalability).
 
-      Output harus dalam format JSON ARRAY yang berisi tepat 10 objek dengan struktur:
+      Output harus dalam format JSON ARRAY berisi tepat 10 objek:
       {
         "id": number,
         "question": "string",
@@ -178,7 +199,7 @@ export function PRDBuilder({ user }: PRDBuilderProps) {
         "isFreetextOnly": boolean
       }
       
-      Berikan pertanyaan dalam bahasa Indonesia yang profesional. Jika pertanyaan butuh penjelasan panjang, set isFreetextOnly: true. Jika ada pilihan ganda, berikan 4 opsi yang variatif.`;
+      Gunakan Bahasa Indonesia formal. Berikan opsi jawaban yang cerdas dan provokatif jika bukan freetext.`;
 
       const filePart = uploadedFile ? { mimeType: uploadedFile.type, data: uploadedFile.data } : undefined;
       const dQuestions = await callGemini(prompt, true, filePart);
